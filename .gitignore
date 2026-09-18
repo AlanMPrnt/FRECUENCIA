@@ -3,6 +3,6 @@
 .python-packages/
 __pycache__/
 *.py[cod]
-data/*.db
+data/*
 .sites-runtime/
 site-package.tar.gz

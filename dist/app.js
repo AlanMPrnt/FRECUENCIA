@@ -94,9 +94,9 @@ const demoData = {
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 let currentRange = "short_term";
-let livePayload = null;
 let apiAvailable = false;
 let spotifyConfigured = false;
+let authenticated = false;
 
 function initials(name) {
   return name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
@@ -133,7 +133,14 @@ function render(data) {
   $("#genre-count").textContent = `${data.genreCount} géneros`;
   $("#genre-insight").innerHTML = `<span>01</span> ${escapeHtml(data.genreInsight)}`;
 
-  const lead = data.artists[0];
+  const artists = Array.isArray(data.artists) ? data.artists : [];
+  const tracks = Array.isArray(data.tracks) ? data.tracks : [];
+  const lead = artists[0] || {
+    name: "Sin datos todavía",
+    genre: "Escuchá un poco más y volvé",
+    movement: 0,
+    color: "#313136"
+  };
   $("#lead-artist-name").textContent = lead.name;
   $("#lead-artist-initials").textContent = initials(lead.name);
   $("#lead-artist-genre").textContent = lead.genre;
@@ -144,13 +151,15 @@ function render(data) {
   $("#lead-artist-link").style.background = leadImage && leadImage !== "#" ? `linear-gradient(rgba(15,15,18,.12), rgba(15,15,18,.42)), url('${leadImage}') center/cover` : `linear-gradient(145deg, ${lead.color || "#9e73ff"}, #2b184b 52%, #ff7547)`;
   $("#lead-artist-link").href = lead.url ? safeUrl(lead.url) : "#artistas";
 
-  $("#artist-list").innerHTML = data.artists.slice(0, 5).map((artist, index) => `
+  $("#artist-list").innerHTML = artists.length ? artists.slice(0, 5).map((artist, index) => `
     <li class="artist-row">
-      <span class="position">${String(index + 1).padStart(2, "0")}</span>
-      <span class="artist-avatar" style="--accent:${artist.color || "#a58aff"}">${artist.image ? `<img src="${safeUrl(artist.image)}" alt="" />` : escapeHtml(initials(artist.name))}</span>
-      <span><span class="artist-name">${escapeHtml(artist.name)}</span><span class="artist-genre">${escapeHtml(artist.genre || "Sin género principal")}</span></span>
-      ${movementMarkup(artist.movement ?? 0)}
-    </li>`).join("");
+      <a class="artist-row-content" href="${artist.url ? safeUrl(artist.url) : "#artistas"}" ${artist.url ? 'target="_blank" rel="noreferrer"' : ""}>
+        <span class="position">${String(index + 1).padStart(2, "0")}</span>
+        <span class="artist-avatar" style="--accent:${artist.color || "#a58aff"}">${artist.image ? `<img src="${safeUrl(artist.image)}" alt="" />` : escapeHtml(initials(artist.name))}</span>
+        <span><span class="artist-name">${escapeHtml(artist.name)}</span><span class="artist-genre">${escapeHtml(artist.genre || "Sin género principal")}</span></span>
+        ${movementMarkup(artist.movement ?? 0)}
+      </a>
+    </li>`).join("") : '<li class="empty-result">Spotify todavía no tiene suficiente historial para este período.</li>';
 
   $("#genre-cloud").innerHTML = data.genres.slice(0, 10).map(([genre, weight], index) => `
     <span class="genre-chip ${index === 0 ? "primary" : index < 3 ? "secondary" : ""}" style="--size:${.76 + Math.min(weight, 22) / 55}rem;--lift:${(index % 3 - 1) * 4}px">${escapeHtml(genre)}</span>`).join("");
@@ -160,7 +169,7 @@ function render(data) {
     $(`#${id} span`).textContent = genre;
   });
 
-  $("#track-list").innerHTML = data.tracks.slice(0, 5).map((track, index) => `
+  $("#track-list").innerHTML = tracks.length ? tracks.slice(0, 5).map((track, index) => `
     <li class="track-row">
       <a href="${track.url ? safeUrl(track.url) : "#"}" ${track.url ? 'target="_blank" rel="noreferrer"' : ""}>
         <span class="track-cover" style="--accent:${track.color || "#a58aff"}">
@@ -169,7 +178,7 @@ function render(data) {
         </span>
         <span class="track-meta"><span class="track-name">${escapeHtml(track.name)}</span><span class="track-artist">${escapeHtml(track.artist)}</span></span>
       </a>
-    </li>`).join("");
+    </li>`).join("") : '<li class="empty-result">Todavía no hay canciones suficientes para mostrar.</li>';
 
   const insightIds = [["discovery-title", "discovery-copy"], ["pattern-title", "pattern-copy"], ["signature-title", "signature-copy"]];
   insightIds.forEach(([titleId, copyId], index) => {
@@ -186,15 +195,77 @@ function showToast(message) {
 }
 
 async function loadLiveData(range) {
+  setLoading(true);
   try {
     const response = await fetch(`/api/insights?range=${encodeURIComponent(range)}`, { headers: { Accept: "application/json" } });
-    if (!response.ok) throw new Error("No live data");
+    if (response.status === 401) {
+      setSignedOut();
+      showToast("Tu sesión de Spotify venció. Volvé a conectar tu cuenta.");
+      return false;
+    }
+    if (!response.ok) {
+      throw new Error(response.status === 429 ? "rate_limit" : "spotify_error");
+    }
     const payload = await response.json();
-    livePayload = payload;
     render(payload);
-  } catch {
-    livePayload = null;
-    render(demoData[range]);
+    return true;
+  } catch (error) {
+    showToast(error.message === "rate_limit" ? "Spotify está respondiendo lento. Probá de nuevo en un momento." : "No pudimos leer tus estadísticas ahora mismo.");
+    return false;
+  } finally {
+    setLoading(false);
+  }
+}
+
+function setLoading(isLoading) {
+  $("#inicio").setAttribute("aria-busy", String(isLoading));
+  $$(".range-button").forEach((button) => { button.disabled = isLoading; });
+  if (isLoading && authenticated) {
+    $("#mode-pill").innerHTML = "<span></span> Leyendo tu música…";
+  } else if (authenticated) {
+    $("#mode-pill").innerHTML = "<span></span> Datos reales";
+  }
+}
+
+function setSignedIn() {
+  authenticated = true;
+  $("#mode-pill").classList.add("live");
+  $("#mode-pill").innerHTML = "<span></span> Datos reales";
+  $("#connect-button").classList.add("logout");
+  $("#connect-button").innerHTML = "Cerrar sesión";
+  $("#connect-button").href = "/auth/logout";
+  $("#connect-button").dataset.authAction = "logout";
+}
+
+function setSignedOut() {
+  authenticated = false;
+  $("#mode-pill").classList.remove("live");
+  $("#mode-pill").innerHTML = "<span></span> Vista de ejemplo";
+  $("#connect-button").classList.remove("logout");
+  $("#connect-button").innerHTML = `
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm4.59 14.42a.62.62 0 0 1-.85.2c-2.34-1.43-5.29-1.75-8.76-.96a.62.62 0 1 1-.28-1.2c3.8-.87 7.08-.5 9.68 1.08.29.18.39.57.2.88Zm1.21-2.7a.78.78 0 0 1-1.07.25c-2.68-1.65-6.77-2.12-9.94-1.16a.78.78 0 1 1-.45-1.49c3.63-1.1 8.14-.57 11.2 1.32.37.22.48.7.26 1.07Zm.1-2.8C14.68 7 9.37 6.63 6.3 7.56a.93.93 0 1 1-.54-1.78c3.53-1.07 9.4-.63 13.1 1.57a.93.93 0 0 1-.96 1.6Z"/></svg>
+    Conectar Spotify`;
+  $("#connect-button").href = "/auth/login";
+  $("#connect-button").dataset.authAction = "login";
+}
+
+function handleAuthResult() {
+  const params = new URLSearchParams(location.search);
+  if (params.get("connected") === "1") {
+    showToast("Spotify conectado. Ya estás viendo tus datos reales.");
+  } else if (params.get("logged_out") === "1") {
+    showToast("Sesión cerrada.");
+  } else if (params.has("auth_error")) {
+    const messages = {
+      access_denied: "Cancelaste la conexión con Spotify.",
+      invalid_state: "La autorización venció. Intentá conectarte de nuevo.",
+      missing_code: "Spotify no completó la autorización.",
+      token_exchange: "No pudimos completar el login con Spotify."
+    };
+    showToast(messages[params.get("auth_error")] || "No pudimos conectar Spotify.");
+  }
+  if (["connected", "logged_out", "auth_error"].some((key) => params.has(key))) {
+    history.replaceState({}, "", location.pathname + location.hash);
   }
 }
 
@@ -206,14 +277,13 @@ async function detectSession() {
     apiAvailable = true;
     spotifyConfigured = status.configured;
     if (status.authenticated) {
-      $("#mode-pill").classList.add("live");
-      $("#mode-pill").innerHTML = "<span></span> Datos reales";
-      $("#connect-button").innerHTML = "Cuenta conectada";
-      $("#connect-button").href = "/auth/logout";
+      setSignedIn();
       await loadLiveData(currentRange);
+    } else {
+      setSignedOut();
     }
   } catch {
-    // The published visual preview intentionally falls back to demo data.
+    setSignedOut();
   }
 }
 
@@ -222,17 +292,19 @@ $$('.range-button').forEach((button) => {
     $$('.range-button').forEach((item) => item.classList.remove("active"));
     button.classList.add("active");
     currentRange = button.dataset.range;
-    if ($("#mode-pill").classList.contains("live")) await loadLiveData(currentRange);
+    if (authenticated) await loadLiveData(currentRange);
     else render(demoData[currentRange]);
   });
 });
 
 $("#connect-button").addEventListener("click", (event) => {
+  if ($("#connect-button").dataset.authAction === "logout") return;
   if (!apiAvailable || !spotifyConfigured) {
     event.preventDefault();
-    showToast(spotifyConfigured ? "El backend de Spotify no está disponible en esta vista." : "La conexión real se activa al ejecutar el proyecto con tus credenciales de Spotify.");
+    showToast(spotifyConfigured ? "El backend de Spotify no está disponible." : "La conexión con Spotify todavía no está configurada.");
   }
 });
 
 render(demoData[currentRange]);
+handleAuthResult();
 detectSession();

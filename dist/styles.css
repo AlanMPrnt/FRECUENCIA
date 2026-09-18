@@ -66,6 +66,9 @@ a { color: inherit; text-decoration: none; }
 .connect-button { display: inline-flex; align-items: center; gap: 9px; padding: 11px 16px; border-radius: 999px; background: var(--text); color: #0a0a0c; font-size: .88rem; font-weight: 700; transition: transform .2s ease, background .2s ease; }
 .connect-button svg { width: 19px; height: 19px; fill: #1ed760; }
 .connect-button:hover { transform: translateY(-2px); background: var(--lime); }
+.connect-button.logout { background: transparent; color: var(--text); border: 1px solid var(--line-strong); }
+.connect-button.logout svg { display: none; }
+.connect-button.logout:hover { background: rgba(255,255,255,.08); }
 .connect-button:focus-visible, .range-button:focus-visible, .artist-portrait:focus-visible { outline: 3px solid rgba(217,255,67,.65); outline-offset: 3px; }
 
 .shell { width: min(1420px, calc(100% - 56px)); margin: 0 auto; padding: 72px 0 40px; }
@@ -78,6 +81,7 @@ h1 { margin-bottom: 12px; font-family: var(--font-display); font-size: clamp(2.7
 .range-button { border: 0; border-radius: 999px; padding: 10px 16px; background: transparent; color: var(--muted); cursor: pointer; transition: color .2s, background .2s; white-space: nowrap; }
 .range-button:hover { color: var(--text); }
 .range-button.active { background: var(--text); color: #0b0b0d; font-weight: 700; }
+.range-button:disabled { cursor: wait; opacity: .55; }
 
 .hero-grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(270px, .8fr) minmax(270px, .8fr); gap: 16px; }
 .card { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-xl); background: var(--surface); backdrop-filter: blur(22px); }
@@ -135,7 +139,9 @@ h1 { margin-bottom: 12px; font-family: var(--font-display); font-size: clamp(2.7
 .ranking-card, .genres-card, .tracks-card { padding: 28px; }
 .tracks-card { grid-column: 1 / -1; }
 .artist-list, .track-list { list-style: none; padding: 0; margin: 22px 0 0; }
-.artist-row { display: grid; grid-template-columns: 34px 52px minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.artist-row { border-bottom: 1px solid var(--line); }
+.artist-row-content { display: grid; grid-template-columns: 34px 52px minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 12px 0; border-radius: 12px; transition: background .2s ease, padding .2s ease; }
+.artist-row-content:hover { background: rgba(255,255,255,.04); padding-inline: 10px; }
 .artist-row:last-child, .track-row:last-child { border-bottom: 0; }
 .position { color: var(--muted); font-family: var(--font-display); font-size: .85rem; }
 .artist-avatar, .track-cover { position: relative; overflow: hidden; display: grid; place-items: center; flex: none; background: var(--accent, var(--violet)); color: #0b0b0d; font-family: var(--font-display); font-weight: 800; }
@@ -158,6 +164,7 @@ h1 { margin-bottom: 12px; font-family: var(--font-display); font-size: clamp(2.7
 .track-rank { position: absolute; top: 9px; left: 9px; display: grid; place-items: center; width: 25px; height: 25px; border-radius: 50%; background: rgba(7,7,9,.68); color: var(--text); font-family: var(--font-body); font-size: .68rem; backdrop-filter: blur(6px); }
 .track-meta { min-width: 0; }
 .track-name { font-size: .9rem; }.track-artist { margin-top: 2px; }
+.empty-result { grid-column: 1 / -1; padding: 30px 0; color: var(--muted); text-align: center; }
 
 .insight-strip { margin-top: 16px; display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: var(--radius-xl); overflow: hidden; background: rgba(255,255,255,.025); }
 .insight-strip article { position: relative; min-height: 230px; padding: 28px; border-right: 1px solid var(--line); }
@@ -209,7 +216,7 @@ h1 { margin-bottom: 12px; font-family: var(--font-display); font-size: clamp(2.7
   .dna-legend span { font-size: .63rem; }
   .genre-node { transform: scale(.88); }
   .track-list { gap: 16px 10px; }
-  .artist-row { grid-template-columns: 26px 46px minmax(0,1fr) auto; gap: 10px; }
+  .artist-row-content { grid-template-columns: 26px 46px minmax(0,1fr) auto; gap: 10px; }
   .artist-avatar { width: 46px; height: 46px; }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -1,0 +1,11 @@
+.env
+.git
+.gitignore
+.openai
+.venv
+__pycache__
+*.pyc
+data
+outputs
+*.zip
+*.tar.gz
