@@ -26,8 +26,9 @@ ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 
 DIST_DIR = ROOT / "dist"
-DATA_DIR = ROOT / "data"
-DATA_DIR.mkdir(exist_ok=True)
+IS_VERCEL = os.getenv("VERCEL", "").strip() == "1"
+DATA_DIR = Path("/tmp/frecuencia") if IS_VERCEL else ROOT / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
 IS_PRODUCTION = APP_ENV == "production"

@@ -52,6 +52,8 @@ Abrí `http://127.0.0.1:8000` y presioná **Conectar Spotify**.
 
 El repositorio incluye `Dockerfile` y `Procfile`, por lo que puede ejecutarse en cualquier plataforma que soporte contenedores o procesos Python.
 
+También incluye `app.py` y `vercel.json` para que Vercel detecte el backend FastAPI. En Vercel configurá `REDIS_URL`: el almacenamiento SQLite bajo `/tmp` es efímero y solo sirve como respaldo técnico, no como almacenamiento confiable para sesiones OAuth públicas.
+
 Variables obligatorias en producción:
 
 ```env
