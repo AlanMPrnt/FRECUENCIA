@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Explorá cómo cambia tu identidad musical con tus artistas, canciones y géneros favoritos de Spotify."
+    />
+    <meta name="theme-color" content="#09090b" />
+    <title>Frecuencia — Tu ADN musical</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-a" aria-hidden="true"></div>
+    <div class="ambient ambient-b" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <a class="brand" href="#inicio" aria-label="Frecuencia, inicio">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        <span>frecuencia</span>
+      </a>
+      <div class="topbar-actions">
+        <span id="mode-pill" class="mode-pill"><span></span> Modo demo</span>
+        <a id="connect-button" class="connect-button" href="/auth/login">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm4.59 14.42a.62.62 0 0 1-.85.2c-2.34-1.43-5.29-1.75-8.76-.96a.62.62 0 1 1-.28-1.2c3.8-.87 7.08-.5 9.68 1.08.29.18.39.57.2.88Zm1.21-2.7a.78.78 0 0 1-1.07.25c-2.68-1.65-6.77-2.12-9.94-1.16a.78.78 0 1 1-.45-1.49c3.63-1.1 8.14-.57 11.2 1.32.37.22.48.7.26 1.07Zm.1-2.8C14.68 7 9.37 6.63 6.3 7.56a.93.93 0 1 1-.54-1.78c3.53-1.07 9.4-.63 13.1 1.57a.93.93 0 0 1-.96 1.6Z"/></svg>
+          Conectar Spotify
+        </a>
+      </div>
+    </header>
+
+    <main id="inicio" class="shell">
+      <section class="intro-row" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">Tu identidad sonora</p>
+          <h1 id="page-title">Tu ADN musical</h1>
+          <p id="period-copy" class="intro-copy">Lo que más te definió durante las últimas 4 semanas.</p>
+        </div>
+        <div class="range-switcher" role="group" aria-label="Período de análisis">
+          <button class="range-button active" type="button" data-range="short_term">4 semanas</button>
+          <button class="range-button" type="button" data-range="medium_term">6 meses</button>
+          <button class="range-button" type="button" data-range="long_term">1 año</button>
+        </div>
+      </section>
+
+      <section class="hero-grid" aria-label="Resumen de tu ADN musical">
+        <article class="card dna-card">
+          <div class="card-heading">
+            <div>
+              <p class="card-kicker">Huella sonora</p>
+              <h2 id="profile-name">Nocturno e inquieto</h2>
+            </div>
+            <span class="period-label" id="period-label">Ahora</span>
+          </div>
+
+          <div class="dna-stage" aria-label="Visualización de tus géneros principales">
+            <div class="orbit orbit-outer"></div>
+            <div class="orbit orbit-middle"></div>
+            <div class="orbit orbit-inner"></div>
+            <div class="genre-node node-a" id="node-a"><span>alt pop</span></div>
+            <div class="genre-node node-b" id="node-b"><span>indie</span></div>
+            <div class="genre-node node-c" id="node-c"><span>urbano</span></div>
+            <div class="genre-node node-d" id="node-d"><span>electrónica</span></div>
+            <div class="dna-core">
+              <span class="core-label">Variedad</span>
+              <strong id="diversity-score">78</strong>
+              <span class="core-unit">/ 100</span>
+            </div>
+          </div>
+
+          <div class="dna-legend">
+            <span><i class="dot dot-lime"></i> Exploración</span>
+            <span><i class="dot dot-violet"></i> Afinidad</span>
+            <span><i class="dot dot-orange"></i> Recurrencia</span>
+          </div>
+        </article>
+
+        <article class="card lead-artist-card">
+          <div class="card-heading compact">
+            <div>
+              <p class="card-kicker">Tu artista #1</p>
+              <h2 id="lead-artist-name">Tame Impala</h2>
+            </div>
+            <span id="lead-artist-rank" class="rank-change up">↗ 3</span>
+          </div>
+          <a id="lead-artist-link" class="artist-portrait" href="#artistas" aria-label="Ver artistas principales">
+            <div class="portrait-noise" aria-hidden="true"></div>
+            <span id="lead-artist-initials">TI</span>
+            <div class="portrait-caption">
+              <span id="lead-artist-genre">Neo-psychedelia</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+            </div>
+          </a>
+          <p id="lead-artist-note" class="artist-note">Volvió a tu primer puesto después de 5 semanas.</p>
+        </article>
+
+        <article class="card pulse-card">
+          <div class="card-heading compact">
+            <div>
+              <p class="card-kicker">Cambio de gusto</p>
+              <h2><span id="change-score">23</span>%</h2>
+            </div>
+            <span class="pulse-badge">en movimiento</span>
+          </div>
+          <div class="pulse-chart" aria-hidden="true">
+            <svg viewBox="0 0 360 150" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#d9ff43" stop-opacity=".38"/>
+                  <stop offset="100%" stop-color="#d9ff43" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <path class="pulse-area" d="M0,125 C35,120 43,102 78,108 C115,114 123,68 162,78 C199,88 205,43 245,57 C286,71 306,20 360,24 L360,150 L0,150 Z"/>
+              <path class="pulse-line" d="M0,125 C35,120 43,102 78,108 C115,114 123,68 162,78 C199,88 205,43 245,57 C286,71 306,20 360,24"/>
+              <circle cx="360" cy="24" r="5"/>
+            </svg>
+          </div>
+          <p id="change-note" class="pulse-copy">Tu rotación cambió más que el mes pasado. Hay 7 artistas nuevos en tu top.</p>
+        </article>
+      </section>
+
+      <section class="content-grid">
+        <article id="artistas" class="card ranking-card">
+          <div class="section-heading">
+            <div>
+              <p class="card-kicker">Afinidad</p>
+              <h2>Artistas que te definen</h2>
+            </div>
+            <span class="section-meta">Top 5</span>
+          </div>
+          <ol id="artist-list" class="artist-list"></ol>
+        </article>
+
+        <article class="card genres-card">
+          <div class="section-heading">
+            <div>
+              <p class="card-kicker">Tu mezcla</p>
+              <h2>Constelación de géneros</h2>
+            </div>
+            <span id="genre-count" class="section-meta">14 géneros</span>
+          </div>
+          <div id="genre-cloud" class="genre-cloud" aria-label="Géneros más frecuentes"></div>
+          <p id="genre-insight" class="genre-insight"><span>01</span> El pop alternativo conecta casi la mitad de tus artistas favoritos.</p>
+        </article>
+
+        <article class="card tracks-card">
+          <div class="section-heading">
+            <div>
+              <p class="card-kicker">En repetición</p>
+              <h2>Canciones esenciales</h2>
+            </div>
+            <span class="section-meta">Top 5</span>
+          </div>
+          <ol id="track-list" class="track-list"></ol>
+        </article>
+      </section>
+
+      <section class="insight-strip" aria-label="Lecturas rápidas">
+        <article>
+          <span class="insight-number">01</span>
+          <p class="card-kicker">Descubrimiento</p>
+          <h3 id="discovery-title">Más curioso que de costumbre</h3>
+          <p id="discovery-copy">Tres de cada diez artistas entraron a tu radar este mes.</p>
+        </article>
+        <article>
+          <span class="insight-number">02</span>
+          <p class="card-kicker">Patrón</p>
+          <h3 id="pattern-title">Tu escucha cruza escenas</h3>
+          <p id="pattern-copy">Saltás del indie psicodélico al urbano sin perder el hilo.</p>
+        </article>
+        <article>
+          <span class="insight-number">03</span>
+          <p class="card-kicker">Firma</p>
+          <h3 id="signature-title">Melancolía bailable</h3>
+          <p id="signature-copy">Tu selección combina introspección, pulso y texturas nocturnas.</p>
+        </article>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>Frecuencia lee tu afinidad musical; nunca publica ni modifica tu cuenta.</p>
+      <p>Datos musicales provistos por Spotify.</p>
+    </footer>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="./app.js" defer></script>
+  </body>
+</html>

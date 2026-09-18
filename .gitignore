@@ -1,0 +1,8 @@
+.env
+.venv/
+.python-packages/
+__pycache__/
+*.py[cod]
+data/*.db
+.sites-runtime/
+site-package.tar.gz
