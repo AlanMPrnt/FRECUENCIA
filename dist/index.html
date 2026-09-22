@@ -141,9 +141,9 @@
       <section class="metrics-grid" aria-label="Tus números musicales">
         <article class="metric-card">
           <span class="metric-index">01</span>
-          <p class="card-kicker">Popularidad media</p>
-          <p class="metric-value"><strong id="metric-mainstream">66</strong><small>/100</small></p>
-          <p>Qué tan conocidos son tus favoritos.</p>
+          <p class="card-kicker">Canciones analizadas</p>
+          <p class="metric-value"><strong id="metric-track-count">50</strong></p>
+          <p>Spotify entrega hasta 50 favoritas por período.</p>
         </article>
         <article class="metric-card">
           <span class="metric-index">02</span>
@@ -165,6 +165,88 @@
         </article>
       </section>
 
+      <section id="historial-completo" class="card history-lab" aria-labelledby="history-title">
+        <div class="history-glow" aria-hidden="true"></div>
+        <header class="history-intro">
+          <div>
+            <p class="card-kicker">Toda tu historia</p>
+            <h2 id="history-title">Tu Top 1000 con reproducciones reales</h2>
+            <p>La API de Spotify ordena afinidad, pero no revela cuántas veces escuchaste cada canción. Importá tu historial oficial y Frecuencia hará el cálculo exacto.</p>
+          </div>
+          <span class="privacy-badge">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Zm-3-10 2 2 4-5"/></svg>
+            El archivo no sale de tu dispositivo
+          </span>
+        </header>
+
+        <div id="history-upload" class="history-upload">
+          <input id="history-files" type="file" accept=".json,application/json" multiple hidden />
+          <div class="upload-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0L7 9m5-5 5 5M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>
+          </div>
+          <div>
+            <h3>Arrastrá tus JSON acá</h3>
+            <p>O elegí todos los archivos <strong>Streaming_History_Audio_*.json</strong> del ZIP de Spotify.</p>
+          </div>
+          <label class="history-file-button" for="history-files">Seleccionar archivos</label>
+          <a class="history-help" href="https://www.spotify.com/account/privacy/" target="_blank" rel="noreferrer">Pedir mis datos en Spotify ↗</a>
+        </div>
+
+        <div id="history-results" class="history-results" hidden>
+          <div class="history-summary" aria-label="Resumen del historial">
+            <article><span>Reproducciones</span><strong id="history-play-count">0</strong></article>
+            <article><span>Canciones únicas</span><strong id="history-unique-tracks">0</strong></article>
+            <article><span>Artistas únicos</span><strong id="history-unique-artists">0</strong></article>
+            <article><span>Tiempo escuchado</span><strong id="history-listening-time">0 h</strong></article>
+            <article><span>Artista más escuchado</span><strong id="history-top-artist">—</strong></article>
+            <article><span>Período cubierto</span><strong id="history-date-range">—</strong></article>
+          </div>
+
+          <div class="history-toolbar">
+            <div class="history-ranges" role="group" aria-label="Período del historial">
+              <button class="history-range active" type="button" data-history-range="all">Todo</button>
+              <button class="history-range" type="button" data-history-range="one_year">1 año</button>
+              <button class="history-range" type="button" data-history-range="six_months">6 meses</button>
+              <button class="history-range" type="button" data-history-range="four_weeks">4 semanas</button>
+            </div>
+            <label class="history-search">
+              <span class="sr-only">Buscar en el historial</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"/></svg>
+              <input id="history-search" type="search" placeholder="Buscar canción, artista o álbum" autocomplete="off" />
+            </label>
+            <button id="history-clear" class="history-clear" type="button">Quitar historial</button>
+          </div>
+
+          <div class="history-insights">
+            <article class="history-years-panel">
+              <div class="history-panel-heading">
+                <div><span>Evolución</span><h3>Tu escucha por año</h3></div>
+                <small>Tiempo total</small>
+              </div>
+              <div id="history-years" class="history-years" aria-label="Tiempo escuchado por año"></div>
+            </article>
+            <article class="history-artists-panel">
+              <div class="history-panel-heading">
+                <div><span>Top histórico</span><h3>Artistas más escuchados</h3></div>
+                <small>Top 10</small>
+              </div>
+              <ol id="history-artists" class="history-artists"></ol>
+            </article>
+          </div>
+
+          <div class="history-table-wrap">
+            <table class="history-table">
+              <thead><tr><th>#</th><th>Canción</th><th>Artista · Álbum</th><th>Reproducciones</th><th>Tiempo</th></tr></thead>
+              <tbody id="history-ranking"></tbody>
+            </table>
+          </div>
+          <div class="history-footer">
+            <span id="history-result-count">0 canciones</span>
+            <button id="history-more" class="history-more" type="button">Ver 100 más</button>
+          </div>
+        </div>
+      </section>
+
       <section class="content-grid">
         <article id="artistas" class="card ranking-card">
           <div class="section-heading">
@@ -172,7 +254,7 @@
               <p class="card-kicker">Afinidad</p>
               <h2>Artistas que te definen</h2>
             </div>
-            <button id="artist-toggle" class="list-toggle" type="button" aria-expanded="false">Ver Top 10</button>
+            <button id="artist-toggle" class="list-toggle" type="button" aria-expanded="false">Ver Top 50</button>
           </div>
           <ol id="artist-list" class="artist-list"></ol>
         </article>
@@ -195,7 +277,7 @@
               <p class="card-kicker">En repetición</p>
               <h2>Canciones esenciales</h2>
             </div>
-            <button id="track-toggle" class="list-toggle" type="button" aria-expanded="false">Ver Top 10</button>
+            <button id="track-toggle" class="list-toggle" type="button" aria-expanded="false">Ver Top 50</button>
           </div>
           <ol id="track-list" class="track-list"></ol>
         </article>
@@ -229,6 +311,7 @@
     </footer>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="./history.js" defer></script>
     <script src="./app.js" defer></script>
   </body>
 </html>

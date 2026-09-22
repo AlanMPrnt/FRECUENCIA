@@ -6,7 +6,8 @@ const demoData = {
     diversity: 78,
     change: 23,
     changeNote: "Tu rotación cambió más que el mes pasado. Hay 7 artistas nuevos en tu top.",
-    mainstream: 66,
+    analyzedTracks: 50,
+    analyzedArtists: 50,
     era: "2020s",
     averageDuration: "3:36",
     explicitShare: 28,
@@ -50,7 +51,8 @@ const demoData = {
     diversity: 71,
     change: 16,
     changeNote: "Tu núcleo se mantiene estable, aunque el pop experimental ganó terreno.",
-    mainstream: 62,
+    analyzedTracks: 50,
+    analyzedArtists: 50,
     era: "2010s",
     averageDuration: "3:42",
     explicitShare: 22,
@@ -94,7 +96,8 @@ const demoData = {
     diversity: 64,
     change: 31,
     changeNote: "Tu presente se alejó bastante del núcleo que dominaba al comienzo del año.",
-    mainstream: 69,
+    analyzedTracks: 50,
+    analyzedArtists: 50,
     era: "2010s",
     averageDuration: "3:51",
     explicitShare: 32,
@@ -145,6 +148,10 @@ let authenticated = false;
 let currentData = null;
 let showAllArtists = false;
 let showAllTracks = false;
+let historyEntries = [];
+let historyRange = "all";
+let historyLimit = 100;
+let historyQuery = "";
 
 function initials(name) {
   return name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
@@ -179,7 +186,7 @@ function render(data) {
   $("#diversity-score").textContent = data.diversity;
   $("#change-score").textContent = data.change;
   $("#change-note").textContent = data.changeNote;
-  $("#metric-mainstream").textContent = Number.isFinite(data.mainstream) ? data.mainstream : "—";
+  $("#metric-track-count").textContent = Number.isFinite(data.analyzedTracks) ? data.analyzedTracks : (data.tracks?.length || "—");
   $("#metric-era").textContent = data.era || "—";
   $("#metric-duration").textContent = data.averageDuration || "—";
   $("#metric-explicit").textContent = Number.isFinite(data.explicitShare) ? data.explicitShare : "—";
@@ -204,12 +211,12 @@ function render(data) {
   $("#lead-artist-link").style.background = leadImage && leadImage !== "#" ? `linear-gradient(rgba(15,15,18,.12), rgba(15,15,18,.42)), url('${leadImage}') center/cover` : `linear-gradient(145deg, ${lead.color || "#9e73ff"}, #2b184b 52%, #ff7547)`;
   $("#lead-artist-link").href = lead.url ? safeUrl(lead.url) : "#artistas";
 
-  $("#artist-list").innerHTML = artists.length ? artists.slice(0, 10).map((artist, index) => `
-    <li class="artist-row ${index >= 5 && !showAllArtists ? "is-hidden" : ""}">
+  $("#artist-list").innerHTML = artists.length ? artists.slice(0, 50).map((artist, index) => `
+    <li class="artist-row ${index >= 10 && !showAllArtists ? "is-hidden" : ""}">
       <a class="artist-row-content" href="${artist.url ? safeUrl(artist.url) : "#artistas"}" ${artist.url ? 'target="_blank" rel="noreferrer"' : ""}>
         <span class="position">${String(index + 1).padStart(2, "0")}</span>
-        <span class="artist-avatar" style="--accent:${artist.color || "#a58aff"}">${artist.image ? `<img src="${safeUrl(artist.image)}" alt="" />` : escapeHtml(initials(artist.name))}</span>
-        <span><span class="artist-name">${escapeHtml(artist.name)}</span><span class="artist-genre">${escapeHtml(artist.genre || "Sin género principal")}</span></span>
+        <span class="artist-avatar" style="--accent:${artist.color || "#a58aff"}">${artist.image ? `<img src="${safeUrl(artist.image)}" alt="" loading="lazy" />` : escapeHtml(initials(artist.name))}</span>
+        <span><span class="artist-name">${escapeHtml(artist.name)}</span><span class="artist-genre">${escapeHtml((artist.genres || []).join(" · ") || artist.genre || "Sin género principal")}</span></span>
         ${movementMarkup(artist.movement ?? 0)}
       </a>
     </li>`).join("") : '<li class="empty-result">Spotify todavía no tiene suficiente historial para este período.</li>';
@@ -222,14 +229,18 @@ function render(data) {
     $(`#${id} span`).textContent = genre;
   });
 
-  $("#track-list").innerHTML = tracks.length ? tracks.slice(0, 10).map((track, index) => `
-    <li class="track-row ${index >= 5 && !showAllTracks ? "is-hidden" : ""}">
+  $("#track-list").innerHTML = tracks.length ? tracks.slice(0, 50).map((track, index) => `
+    <li class="track-row ${index >= 10 && !showAllTracks ? "is-hidden" : ""}">
       <a href="${track.url ? safeUrl(track.url) : "#"}" ${track.url ? 'target="_blank" rel="noreferrer"' : ""}>
         <span class="track-cover" style="--accent:${track.color || "#a58aff"}">
-          ${track.image ? `<img src="${safeUrl(track.image)}" alt="" />` : escapeHtml(initials(track.name))}
+          ${track.image ? `<img src="${safeUrl(track.image)}" alt="" loading="lazy" />` : escapeHtml(initials(track.name))}
           <span class="track-rank">${String(index + 1).padStart(2, "0")}</span>
         </span>
-        <span class="track-meta"><span class="track-name">${escapeHtml(track.name)}</span><span class="track-artist">${escapeHtml(track.artist)}</span></span>
+        <span class="track-meta">
+          <span class="track-name">${escapeHtml(track.name)}</span>
+          <span class="track-artist">${escapeHtml(track.artist)}</span>
+          ${(track.album || track.duration) ? `<span class="track-details">${escapeHtml([track.album, track.releaseYear, track.duration, track.explicit ? "E" : ""].filter(Boolean).join(" · "))}</span>` : ""}
+        </span>
       </a>
     </li>`).join("") : '<li class="empty-result">Todavía no hay canciones suficientes para mostrar.</li>';
 
@@ -244,9 +255,9 @@ function render(data) {
 }
 
 function updateListToggle(button, expanded, count) {
-  button.hidden = count <= 5;
+  button.hidden = count <= 10;
   button.setAttribute("aria-expanded", String(expanded));
-  button.textContent = expanded ? "Ver Top 5" : `Ver Top ${Math.min(count, 10)}`;
+  button.textContent = expanded ? "Ver Top 10" : `Ver Top ${Math.min(count, 50)}`;
 }
 
 function showToast(message) {
@@ -254,6 +265,115 @@ function showToast(message) {
   toast.textContent = message;
   toast.classList.add("visible");
   window.setTimeout(() => toast.classList.remove("visible"), 3600);
+}
+
+function formatNumber(value) {
+  return new Intl.NumberFormat("es-AR").format(value || 0);
+}
+
+function formatListeningTime(milliseconds) {
+  const minutes = Math.floor((milliseconds || 0) / 60_000);
+  const hours = Math.floor(minutes / 60);
+  if (minutes < 1) return "<1 min";
+  if (hours < 1) return `${minutes} min`;
+  if (hours < 24) return `${hours} h ${minutes % 60} min`;
+  const days = Math.floor(hours / 24);
+  const remainingHours = hours % 24;
+  return `${formatNumber(days)} d ${remainingHours} h`;
+}
+
+function spotifyTrackUrl(uri) {
+  const match = /^spotify:track:([A-Za-z0-9]+)$/.exec(uri || "");
+  return match ? `https://open.spotify.com/track/${match[1]}` : "";
+}
+
+function formatHistoryDate(timestamp) {
+  if (!Number.isFinite(timestamp)) return "—";
+  return new Intl.DateTimeFormat("es-AR", { month: "short", year: "numeric", timeZone: "UTC" }).format(timestamp);
+}
+
+function renderHistory() {
+  if (!historyEntries.length || !window.FrecuenciaHistory) return;
+  const analysis = window.FrecuenciaHistory.aggregateHistory(historyEntries, historyRange);
+  const normalizedQuery = historyQuery.trim().toLocaleLowerCase("es");
+  const filteredTracks = normalizedQuery
+    ? analysis.tracks.filter((item) => `${item.track} ${item.artist} ${item.album}`.toLocaleLowerCase("es").includes(normalizedQuery))
+    : analysis.tracks;
+  const visibleTracks = filteredTracks.slice(0, historyLimit);
+
+  $("#history-play-count").textContent = formatNumber(analysis.summary.plays);
+  $("#history-unique-tracks").textContent = formatNumber(analysis.summary.uniqueTracks);
+  $("#history-unique-artists").textContent = formatNumber(analysis.summary.uniqueArtists);
+  $("#history-listening-time").textContent = formatListeningTime(analysis.summary.playedMs);
+  $("#history-top-artist").textContent = analysis.summary.topArtist;
+  $("#history-date-range").textContent = analysis.summary.firstPlayedAt === analysis.summary.lastPlayedAt
+    ? formatHistoryDate(analysis.summary.firstPlayedAt)
+    : `${formatHistoryDate(analysis.summary.firstPlayedAt)} – ${formatHistoryDate(analysis.summary.lastPlayedAt)}`;
+
+  const highestYearMs = Math.max(1, ...analysis.years.map((year) => year.playedMs));
+  $("#history-years").innerHTML = analysis.years.length ? analysis.years.map((year) => {
+    const height = Math.max(7, Math.round(year.playedMs / highestYearMs * 100));
+    const time = formatListeningTime(year.playedMs);
+    return `<div class="history-year" aria-label="${year.year}: ${escapeHtml(time)}"><strong>${escapeHtml(time)}</strong><span style="--bar-height:${height}%"></span><small>${year.year}</small></div>`;
+  }).join("") : '<p class="history-panel-empty">No hay fechas válidas en este período.</p>';
+  $("#history-artists").innerHTML = analysis.artists.length ? analysis.artists.slice(0, 10).map((artist) => `
+    <li><span>${String(artist.rank).padStart(2, "0")}</span><strong>${escapeHtml(artist.artist)}</strong><small>${formatNumber(artist.plays)} escuchas</small></li>
+  `).join("") : '<li class="history-panel-empty">No hay artistas para este período.</li>';
+
+  $("#history-result-count").textContent = `${formatNumber(filteredTracks.length)} ${filteredTracks.length === 1 ? "canción" : "canciones"} en el ranking`;
+  $("#history-ranking").innerHTML = visibleTracks.length ? visibleTracks.map((item) => {
+    const url = spotifyTrackUrl(item.uri);
+    const title = escapeHtml(item.track);
+    return `
+      <tr>
+        <td class="history-rank">${String(item.rank).padStart(3, "0")}</td>
+        <td class="history-song">${url ? `<a href="${url}" target="_blank" rel="noreferrer">${title}<span aria-hidden="true">↗</span></a>` : title}</td>
+        <td><strong>${escapeHtml(item.artist)}</strong><span>${escapeHtml(item.album || "Álbum sin identificar")}</span></td>
+        <td class="history-plays"><strong>${formatNumber(item.plays)}</strong><span>escuchas</span></td>
+        <td>${formatListeningTime(item.playedMs)}</td>
+      </tr>`;
+  }).join("") : '<tr><td class="history-empty" colspan="5">No encontramos canciones para esa búsqueda o período.</td></tr>';
+  $("#history-more").hidden = visibleTracks.length >= filteredTracks.length;
+}
+
+async function importHistoryFiles(files) {
+  if (!files?.length || !window.FrecuenciaHistory) return;
+  const uploader = $("#history-upload");
+  uploader.classList.add("loading");
+  uploader.setAttribute("aria-busy", "true");
+  try {
+    const result = await window.FrecuenciaHistory.parseHistoryFiles([...files]);
+    historyEntries = result.entries;
+    historyRange = "all";
+    historyLimit = 100;
+    historyQuery = "";
+    $("#history-search").value = "";
+    $$(".history-range").forEach((button) => button.classList.toggle("active", button.dataset.historyRange === "all"));
+    $("#history-results").hidden = false;
+    uploader.classList.add("compact");
+    renderHistory();
+    const rejectedCopy = result.rejected.length ? ` ${result.rejected.length} archivo(s) no se pudieron leer.` : "";
+    showToast(`${formatNumber(result.entries.length)} registros procesados en tu dispositivo.${rejectedCopy}`);
+    $("#history-results").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (error) {
+    showToast(error.message || "No pudimos leer esos archivos de Spotify.");
+  } finally {
+    uploader.classList.remove("loading");
+    uploader.setAttribute("aria-busy", "false");
+    $("#history-files").value = "";
+  }
+}
+
+function clearHistory() {
+  historyEntries = [];
+  historyRange = "all";
+  historyLimit = 100;
+  historyQuery = "";
+  $("#history-results").hidden = true;
+  $("#history-upload").classList.remove("compact");
+  $("#history-ranking").replaceChildren();
+  $("#history-search").value = "";
+  showToast("El historial se quitó de esta sesión.");
 }
 
 async function loadLiveData(range, refresh = false) {
@@ -409,6 +529,42 @@ $("#connect-button").addEventListener("click", (event) => {
     showToast(spotifyConfigured ? "El backend de Spotify no está disponible." : "La conexión con Spotify todavía no está configurada.");
   }
 });
+
+$("#history-files").addEventListener("change", (event) => importHistoryFiles(event.target.files));
+
+$$('.history-range').forEach((button) => {
+  button.addEventListener("click", () => {
+    $$('.history-range').forEach((item) => item.classList.remove("active"));
+    button.classList.add("active");
+    historyRange = button.dataset.historyRange;
+    historyLimit = 100;
+    renderHistory();
+  });
+});
+
+$("#history-search").addEventListener("input", (event) => {
+  historyQuery = event.target.value;
+  historyLimit = 100;
+  renderHistory();
+});
+
+$("#history-more").addEventListener("click", () => {
+  historyLimit = Math.min(1000, historyLimit + 100);
+  renderHistory();
+});
+
+$("#history-clear").addEventListener("click", clearHistory);
+
+const historyUpload = $("#history-upload");
+["dragenter", "dragover"].forEach((eventName) => historyUpload.addEventListener(eventName, (event) => {
+  event.preventDefault();
+  historyUpload.classList.add("is-dragging");
+}));
+["dragleave", "drop"].forEach((eventName) => historyUpload.addEventListener(eventName, (event) => {
+  event.preventDefault();
+  historyUpload.classList.remove("is-dragging");
+}));
+historyUpload.addEventListener("drop", (event) => importHistoryFiles(event.dataTransfer.files));
 
 render(demoData[currentRange]);
 handleAuthResult();

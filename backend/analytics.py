@@ -4,18 +4,6 @@ from collections import Counter
 from typing import Any
 
 
-def mainstream_score(
-    artists: list[dict[str, Any]], tracks: list[dict[str, Any]]
-) -> int:
-    """Estimate how mainstream a selection is using Spotify popularity values."""
-    values = [
-        int(item.get("popularity", 0))
-        for item in [*artists, *tracks]
-        if isinstance(item.get("popularity"), (int, float))
-    ]
-    return round(sum(values) / len(values)) if values else 0
-
-
 def favorite_decade(tracks: list[dict[str, Any]]) -> str:
     decades: Counter[int] = Counter()
     for track in tracks:

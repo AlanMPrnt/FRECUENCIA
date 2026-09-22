@@ -6,15 +6,32 @@ Aplicación web pública para que cada usuario conecte Spotify y vea sus artista
 
 - Login individual con Spotify.
 - Afinidad musical para 4 semanas, 6 meses y aproximadamente 1 año.
-- Top 10 de artistas y canciones, además de los géneros principales.
+- Top 50 en vivo de artistas y canciones, el máximo que entrega la API por período, además de los géneros principales.
+- Importador privado del historial de Spotify para calcular un Top 1000 con reproducciones y tiempo escuchado reales.
+- Búsqueda y filtros de 4 semanas, 6 meses, 1 año o todo el historial importado.
 - Índices de variedad y cambio de gusto.
-- Métricas de popularidad, década dominante, duración media y contenido explícito.
+- Métricas de década dominante, duración media, contenido explícito y cantidad de canciones analizadas.
 - Actualización manual y resumen compartible desde el navegador.
 - Tokens OAuth guardados únicamente en el servidor.
 - Protección `state` contra CSRF y expiración del intento de login.
 - Caché de resultados para reducir llamadas a Spotify.
 - SQLite para una sola instancia o Redis para despliegues con varias réplicas.
 - Interfaz responsive y modo de ejemplo antes de iniciar sesión.
+
+### Top 50 en vivo y Top 1000 histórico
+
+Spotify permite consultar hasta 50 canciones y 50 artistas favoritos por cada período. Ese ranking expresa afinidad y no incluye el número personal de reproducciones. Frecuencia no inventa ese dato.
+
+Para obtener cantidades reales, el usuario puede pedir su **Historial ampliado de reproducciones** desde [Privacidad de la cuenta de Spotify](https://www.spotify.com/account/privacy/), descomprimir el ZIP e importar juntos los archivos `Streaming_History_Audio_*.json`. El análisis:
+
+- se ejecuta íntegramente en el navegador;
+- no sube ni guarda los JSON en el servidor;
+- cuenta como reproducción cada registro musical con al menos 30 segundos escuchados;
+- excluye podcasts y otros episodios;
+- agrupa hasta 1000 canciones y 100 artistas;
+- desaparece al recargar la página o pulsar **Quitar historial**.
+
+También se admite el formato anterior `StreamingHistory*.json`, aunque normalmente contiene un período más corto. Spotify explica los campos disponibles en su guía [Understanding your data](https://support.spotify.com/article/understanding-your-data/).
 
 ## 1. Crear la aplicación en Spotify
 

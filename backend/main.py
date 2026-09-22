@@ -25,7 +25,6 @@ from backend.analytics import (
     average_track_duration,
     explicit_share,
     favorite_decade,
-    mainstream_score,
 )
 
 
@@ -443,11 +442,12 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
         label, description = RANGE_COPY[selected_range]
 
         artist_payload = []
-        for index, artist in enumerate(artists[:10]):
+        for index, artist in enumerate(artists[:50]):
             artist_payload.append(
                 {
                     "name": artist.get("name", "Artista"),
                     "genre": artist_genre(artist),
+                    "genres": (artist.get("genres") or [])[:3],
                     "movement": rank_movement(
                         artist.get("id", ""), baseline_positions, index
                     ),
@@ -458,8 +458,12 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
             )
 
         track_payload = []
-        for index, track in enumerate(tracks[:10]):
+        for index, track in enumerate(tracks[:50]):
             album = track.get("album") or {}
+            duration_ms = int(track.get("duration_ms") or 0)
+            duration_seconds = max(0, round(duration_ms / 1000))
+            duration_minutes, duration_remainder = divmod(duration_seconds, 60)
+            release_date = str(album.get("release_date") or "")
             track_payload.append(
                 {
                     "name": track.get("name", "Canción"),
@@ -469,6 +473,16 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
                     ),
                     "image": image_url(album),
                     "url": (track.get("external_urls") or {}).get("spotify"),
+                    "album": album.get("name") or "Álbum sin identificar",
+                    "releaseYear": (
+                        release_date[:4] if release_date[:4].isdigit() else None
+                    ),
+                    "duration": (
+                        f"{duration_minutes}:{duration_remainder:02d}"
+                        if duration_ms
+                        else None
+                    ),
+                    "explicit": bool(track.get("explicit")),
                     "color": COLOR_PALETTE[index % len(COLOR_PALETTE)],
                 }
             )
@@ -495,7 +509,8 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
             "diversity": diversity,
             "change": change,
             "changeNote": change_note,
-            "mainstream": mainstream_score(artists, tracks),
+            "analyzedTracks": len(tracks),
+            "analyzedArtists": len(artists),
             "era": favorite_decade(tracks),
             "averageDuration": average_track_duration(tracks),
             "explicitShare": explicit_share(tracks),
@@ -513,7 +528,7 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
 app = FastAPI(
     title="Frecuencia API",
     description="Backend de Tu ADN musical, construido con Spotipy.",
-    version="0.3.0",
+    version="0.4.0",
     docs_url=None if IS_PRODUCTION else "/api/docs",
     redoc_url=None,
 )
