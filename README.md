@@ -6,8 +6,10 @@ Aplicación web pública para que cada usuario conecte Spotify y vea sus artista
 
 - Login individual con Spotify.
 - Afinidad musical para 4 semanas, 6 meses y aproximadamente 1 año.
-- Artistas, canciones y géneros principales.
+- Top 10 de artistas y canciones, además de los géneros principales.
 - Índices de variedad y cambio de gusto.
+- Métricas de popularidad, década dominante, duración media y contenido explícito.
+- Actualización manual y resumen compartible desde el navegador.
 - Tokens OAuth guardados únicamente en el servidor.
 - Protección `state` contra CSRF y expiración del intento de login.
 - Caché de resultados para reducir llamadas a Spotify.
@@ -100,4 +102,5 @@ Para permitir el login de cualquier usuario necesitás solicitar **Extended Quot
 - `GET /auth/logout` — elimina la sesión.
 - `GET /api/auth/status` — indica si el usuario está conectado.
 - `GET /api/insights?range=short_term|medium_term|long_term` — devuelve estadísticas personales.
+- `GET /api/insights?range=short_term&refresh=true` — renueva los datos ignorando la caché vigente.
 - `GET /api/health` — comprobación de salud del servicio.

@@ -21,6 +21,13 @@ from spotipy.oauth2 import SpotifyOAuth
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from backend.analytics import (
+    average_track_duration,
+    explicit_share,
+    favorite_decade,
+    mainstream_score,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
@@ -436,7 +443,7 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
         label, description = RANGE_COPY[selected_range]
 
         artist_payload = []
-        for index, artist in enumerate(artists[:5]):
+        for index, artist in enumerate(artists[:10]):
             artist_payload.append(
                 {
                     "name": artist.get("name", "Artista"),
@@ -451,7 +458,7 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
             )
 
         track_payload = []
-        for index, track in enumerate(tracks[:5]):
+        for index, track in enumerate(tracks[:10]):
             album = track.get("album") or {}
             track_payload.append(
                 {
@@ -488,6 +495,10 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
             "diversity": diversity,
             "change": change,
             "changeNote": change_note,
+            "mainstream": mainstream_score(artists, tracks),
+            "era": favorite_decade(tracks),
+            "averageDuration": average_track_duration(tracks),
+            "explicitShare": explicit_share(tracks),
             "genreCount": len(unique_genres),
             "genreInsight": genre_insight,
             "genres": genres,
@@ -502,7 +513,7 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
 app = FastAPI(
     title="Frecuencia API",
     description="Backend de Tu ADN musical, construido con Spotipy.",
-    version="0.2.0",
+    version="0.3.0",
     docs_url=None if IS_PRODUCTION else "/api/docs",
     redoc_url=None,
 )
@@ -629,11 +640,12 @@ def insights(
     range: str = Query(
         default="short_term", pattern="^(short_term|medium_term|long_term)$"
     ),
+    refresh: bool = Query(default=False),
 ) -> dict[str, Any]:
     response.headers["Cache-Control"] = "private, no-store"
     session_id = session_id_for(request)
-    cached = cached_insights(session_id, range)
-    if cached:
+    cached = None if refresh else cached_insights(session_id, range)
+    if cached is not None:
         response.headers["X-Frecuencia-Cache"] = "HIT"
         return cached
 

@@ -6,6 +6,10 @@ const demoData = {
     diversity: 78,
     change: 23,
     changeNote: "Tu rotación cambió más que el mes pasado. Hay 7 artistas nuevos en tu top.",
+    mainstream: 66,
+    era: "2020s",
+    averageDuration: "3:36",
+    explicitShare: 28,
     genreCount: 14,
     genreInsight: "El pop alternativo conecta casi la mitad de tus artistas favoritos.",
     genres: [["alt pop", 18], ["indie", 15], ["urbano", 13], ["electrónica", 10], ["neo-psychedelia", 8], ["art pop", 7], ["rap argentino", 6], ["dream pop", 5]],
@@ -14,14 +18,24 @@ const demoData = {
       { name: "Rosalía", genre: "art pop", movement: 0, color: "#ff8760" },
       { name: "Dillom", genre: "rap argentino", movement: 5, color: "#d9ff43" },
       { name: "Billie Eilish", genre: "alt pop", movement: -2, color: "#72d8ff" },
-      { name: "Frank Ocean", genre: "alternative R&B", movement: 1, color: "#ff89c0" }
+      { name: "Frank Ocean", genre: "alternative R&B", movement: 1, color: "#ff89c0" },
+      { name: "Charly García", genre: "rock argentino", movement: 2, color: "#f5c451" },
+      { name: "Nathy Peluso", genre: "latin alternative", movement: -1, color: "#66e3bc" },
+      { name: "Radiohead", genre: "art rock", movement: 0, color: "#b796ff" },
+      { name: "Bad Bunny", genre: "urbano", movement: 4, color: "#ff8760" },
+      { name: "Phoebe Bridgers", genre: "indie folk", movement: -3, color: "#72d8ff" }
     ],
     tracks: [
       { name: "Borderline", artist: "Tame Impala", color: "#b796ff" },
       { name: "BIZCOCHITO", artist: "Rosalía", color: "#ff8760" },
       { name: "Cirugía", artist: "Dillom", color: "#d9ff43" },
       { name: "CHIHIRO", artist: "Billie Eilish", color: "#72d8ff" },
-      { name: "Pink + White", artist: "Frank Ocean", color: "#ff89c0" }
+      { name: "Pink + White", artist: "Frank Ocean", color: "#ff89c0" },
+      { name: "Yendo de la cama al living", artist: "Charly García", color: "#f5c451" },
+      { name: "Buenos Aires", artist: "Nathy Peluso", color: "#66e3bc" },
+      { name: "Weird Fishes / Arpeggi", artist: "Radiohead", color: "#b796ff" },
+      { name: "MONACO", artist: "Bad Bunny", color: "#ff8760" },
+      { name: "Motion Sickness", artist: "Phoebe Bridgers", color: "#72d8ff" }
     ],
     insights: [
       ["Más curioso que de costumbre", "Tres de cada diez artistas entraron a tu radar este mes."],
@@ -36,6 +50,10 @@ const demoData = {
     diversity: 71,
     change: 16,
     changeNote: "Tu núcleo se mantiene estable, aunque el pop experimental ganó terreno.",
+    mainstream: 62,
+    era: "2010s",
+    averageDuration: "3:42",
+    explicitShare: 22,
     genreCount: 17,
     genreInsight: "El indie funciona como puente entre tus momentos calmos y enérgicos.",
     genres: [["indie", 20], ["alt pop", 17], ["R&B", 13], ["urbano", 11], ["rock argentino", 9], ["art pop", 8], ["electrónica", 6], ["neo soul", 5]],
@@ -44,14 +62,24 @@ const demoData = {
       { name: "Frank Ocean", genre: "alternative R&B", movement: 1, color: "#ff89c0" },
       { name: "Tame Impala", genre: "neo-psychedelia", movement: -1, color: "#b796ff" },
       { name: "WOS", genre: "rap argentino", movement: 3, color: "#d9ff43" },
-      { name: "The Marías", genre: "indie pop", movement: 0, color: "#72d8ff" }
+      { name: "The Marías", genre: "indie pop", movement: 0, color: "#72d8ff" },
+      { name: "Arctic Monkeys", genre: "indie rock", movement: 2, color: "#f5c451" },
+      { name: "Tyler, The Creator", genre: "hip hop", movement: -2, color: "#66e3bc" },
+      { name: "Soda Stereo", genre: "rock argentino", movement: 1, color: "#b796ff" },
+      { name: "Kendrick Lamar", genre: "hip hop", movement: 3, color: "#ff8760" },
+      { name: "Fred again..", genre: "electrónica", movement: 4, color: "#72d8ff" }
     ],
     tracks: [
       { name: "SAOKO", artist: "Rosalía", color: "#ff8760" },
       { name: "Nights", artist: "Frank Ocean", color: "#ff89c0" },
       { name: "Let It Happen", artist: "Tame Impala", color: "#b796ff" },
       { name: "MELÓN VINO", artist: "WOS", color: "#d9ff43" },
-      { name: "Hush", artist: "The Marías", color: "#72d8ff" }
+      { name: "Hush", artist: "The Marías", color: "#72d8ff" },
+      { name: "Body Paint", artist: "Arctic Monkeys", color: "#f5c451" },
+      { name: "WUSYANAME", artist: "Tyler, The Creator", color: "#66e3bc" },
+      { name: "En la ciudad de la furia", artist: "Soda Stereo", color: "#b796ff" },
+      { name: "Count Me Out", artist: "Kendrick Lamar", color: "#ff8760" },
+      { name: "Delilah (pull me out of this)", artist: "Fred again..", color: "#72d8ff" }
     ],
     insights: [
       ["Exploración con ancla", "Descubrís artistas nuevos sin abandonar tu núcleo de siempre."],
@@ -66,6 +94,10 @@ const demoData = {
     diversity: 64,
     change: 31,
     changeNote: "Tu presente se alejó bastante del núcleo que dominaba al comienzo del año.",
+    mainstream: 69,
+    era: "2010s",
+    averageDuration: "3:51",
+    explicitShare: 32,
     genreCount: 19,
     genreInsight: "El R&B alternativo es la constante que sobrevive a todos tus cambios.",
     genres: [["alternative R&B", 22], ["indie", 18], ["alt pop", 14], ["rock", 12], ["urbano", 10], ["neo soul", 8], ["dream pop", 6], ["electrónica", 5]],
@@ -74,14 +106,24 @@ const demoData = {
       { name: "The Strokes", genre: "indie rock", movement: -1, color: "#d9ff43" },
       { name: "Rosalía", genre: "art pop", movement: 4, color: "#ff8760" },
       { name: "Tyler, The Creator", genre: "hip hop", movement: 2, color: "#72d8ff" },
-      { name: "Tame Impala", genre: "neo-psychedelia", movement: 1, color: "#b796ff" }
+      { name: "Tame Impala", genre: "neo-psychedelia", movement: 1, color: "#b796ff" },
+      { name: "Bad Bunny", genre: "urbano", movement: 2, color: "#f5c451" },
+      { name: "Billie Eilish", genre: "alt pop", movement: -2, color: "#66e3bc" },
+      { name: "Gustavo Cerati", genre: "rock argentino", movement: 0, color: "#b796ff" },
+      { name: "Kendrick Lamar", genre: "hip hop", movement: 3, color: "#ff8760" },
+      { name: "Lana Del Rey", genre: "art pop", movement: -1, color: "#72d8ff" }
     ],
     tracks: [
       { name: "Self Control", artist: "Frank Ocean", color: "#ff89c0" },
       { name: "The Adults Are Talking", artist: "The Strokes", color: "#d9ff43" },
       { name: "HENTAI", artist: "Rosalía", color: "#ff8760" },
       { name: "See You Again", artist: "Tyler, The Creator", color: "#72d8ff" },
-      { name: "Eventually", artist: "Tame Impala", color: "#b796ff" }
+      { name: "Eventually", artist: "Tame Impala", color: "#b796ff" },
+      { name: "Ojitos Lindos", artist: "Bad Bunny", color: "#f5c451" },
+      { name: "Happier Than Ever", artist: "Billie Eilish", color: "#66e3bc" },
+      { name: "Crimen", artist: "Gustavo Cerati", color: "#b796ff" },
+      { name: "Money Trees", artist: "Kendrick Lamar", color: "#ff8760" },
+      { name: "West Coast", artist: "Lana Del Rey", color: "#72d8ff" }
     ],
     insights: [
       ["Un año de retornos", "Tus favoritos históricos reaparecen entre cada nueva obsesión."],
@@ -93,10 +135,16 @@ const demoData = {
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
-let currentRange = "short_term";
+const validRanges = ["short_term", "medium_term", "long_term"];
+let currentRange = validRanges.includes(localStorage.getItem("frecuencia_range"))
+  ? localStorage.getItem("frecuencia_range")
+  : "short_term";
 let apiAvailable = false;
 let spotifyConfigured = false;
 let authenticated = false;
+let currentData = null;
+let showAllArtists = false;
+let showAllTracks = false;
 
 function initials(name) {
   return name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
@@ -124,12 +172,17 @@ function movementMarkup(value) {
 }
 
 function render(data) {
+  currentData = data;
   $("#period-copy").textContent = data.description;
   $("#period-label").textContent = data.label;
   $("#profile-name").textContent = data.profile;
   $("#diversity-score").textContent = data.diversity;
   $("#change-score").textContent = data.change;
   $("#change-note").textContent = data.changeNote;
+  $("#metric-mainstream").textContent = Number.isFinite(data.mainstream) ? data.mainstream : "—";
+  $("#metric-era").textContent = data.era || "—";
+  $("#metric-duration").textContent = data.averageDuration || "—";
+  $("#metric-explicit").textContent = Number.isFinite(data.explicitShare) ? data.explicitShare : "—";
   $("#genre-count").textContent = `${data.genreCount} géneros`;
   $("#genre-insight").innerHTML = `<span>01</span> ${escapeHtml(data.genreInsight)}`;
 
@@ -151,8 +204,8 @@ function render(data) {
   $("#lead-artist-link").style.background = leadImage && leadImage !== "#" ? `linear-gradient(rgba(15,15,18,.12), rgba(15,15,18,.42)), url('${leadImage}') center/cover` : `linear-gradient(145deg, ${lead.color || "#9e73ff"}, #2b184b 52%, #ff7547)`;
   $("#lead-artist-link").href = lead.url ? safeUrl(lead.url) : "#artistas";
 
-  $("#artist-list").innerHTML = artists.length ? artists.slice(0, 5).map((artist, index) => `
-    <li class="artist-row">
+  $("#artist-list").innerHTML = artists.length ? artists.slice(0, 10).map((artist, index) => `
+    <li class="artist-row ${index >= 5 && !showAllArtists ? "is-hidden" : ""}">
       <a class="artist-row-content" href="${artist.url ? safeUrl(artist.url) : "#artistas"}" ${artist.url ? 'target="_blank" rel="noreferrer"' : ""}>
         <span class="position">${String(index + 1).padStart(2, "0")}</span>
         <span class="artist-avatar" style="--accent:${artist.color || "#a58aff"}">${artist.image ? `<img src="${safeUrl(artist.image)}" alt="" />` : escapeHtml(initials(artist.name))}</span>
@@ -169,8 +222,8 @@ function render(data) {
     $(`#${id} span`).textContent = genre;
   });
 
-  $("#track-list").innerHTML = tracks.length ? tracks.slice(0, 5).map((track, index) => `
-    <li class="track-row">
+  $("#track-list").innerHTML = tracks.length ? tracks.slice(0, 10).map((track, index) => `
+    <li class="track-row ${index >= 5 && !showAllTracks ? "is-hidden" : ""}">
       <a href="${track.url ? safeUrl(track.url) : "#"}" ${track.url ? 'target="_blank" rel="noreferrer"' : ""}>
         <span class="track-cover" style="--accent:${track.color || "#a58aff"}">
           ${track.image ? `<img src="${safeUrl(track.image)}" alt="" />` : escapeHtml(initials(track.name))}
@@ -180,11 +233,20 @@ function render(data) {
       </a>
     </li>`).join("") : '<li class="empty-result">Todavía no hay canciones suficientes para mostrar.</li>';
 
+  updateListToggle($("#artist-toggle"), showAllArtists, artists.length);
+  updateListToggle($("#track-toggle"), showAllTracks, tracks.length);
+
   const insightIds = [["discovery-title", "discovery-copy"], ["pattern-title", "pattern-copy"], ["signature-title", "signature-copy"]];
   insightIds.forEach(([titleId, copyId], index) => {
     $(`#${titleId}`).textContent = data.insights[index][0];
     $(`#${copyId}`).textContent = data.insights[index][1];
   });
+}
+
+function updateListToggle(button, expanded, count) {
+  button.hidden = count <= 5;
+  button.setAttribute("aria-expanded", String(expanded));
+  button.textContent = expanded ? "Ver Top 5" : `Ver Top ${Math.min(count, 10)}`;
 }
 
 function showToast(message) {
@@ -194,10 +256,12 @@ function showToast(message) {
   window.setTimeout(() => toast.classList.remove("visible"), 3600);
 }
 
-async function loadLiveData(range) {
+async function loadLiveData(range, refresh = false) {
   setLoading(true);
   try {
-    const response = await fetch(`/api/insights?range=${encodeURIComponent(range)}`, { headers: { Accept: "application/json" } });
+    const query = new URLSearchParams({ range });
+    if (refresh) query.set("refresh", "true");
+    const response = await fetch(`/api/insights?${query}`, { headers: { Accept: "application/json" } });
     if (response.status === 401) {
       setSignedOut();
       showToast("Tu sesión de Spotify venció. Volvé a conectar tu cuenta.");
@@ -220,6 +284,9 @@ async function loadLiveData(range) {
 function setLoading(isLoading) {
   $("#inicio").setAttribute("aria-busy", String(isLoading));
   $$(".range-button").forEach((button) => { button.disabled = isLoading; });
+  $("#refresh-button").disabled = isLoading;
+  $("#share-button").disabled = isLoading;
+  $("#refresh-button").classList.toggle("loading", isLoading);
   if (isLoading && authenticated) {
     $("#mode-pill").innerHTML = "<span></span> Leyendo tu música…";
   } else if (authenticated) {
@@ -235,6 +302,7 @@ function setSignedIn() {
   $("#connect-button").innerHTML = "Cerrar sesión";
   $("#connect-button").href = "/auth/logout";
   $("#connect-button").dataset.authAction = "logout";
+  $("#report-actions").hidden = false;
 }
 
 function setSignedOut() {
@@ -247,6 +315,24 @@ function setSignedOut() {
     Conectar Spotify`;
   $("#connect-button").href = "/auth/login";
   $("#connect-button").dataset.authAction = "login";
+  $("#report-actions").hidden = true;
+}
+
+async function shareReport() {
+  if (!authenticated || !currentData) return;
+  const leadArtist = currentData.artists?.[0]?.name || "mi artista favorito";
+  const leadGenre = currentData.genres?.[0]?.[0] || "una mezcla única";
+  const summary = `Mi Frecuencia · ${currentData.label}: ${currentData.profile}. Mi artista #1 es ${leadArtist}, mi género principal es ${leadGenre} y mi variedad musical es ${currentData.diversity}/100.`;
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: "Mi Frecuencia", text: summary, url: location.origin });
+    } else {
+      await navigator.clipboard.writeText(`${summary} ${location.origin}`);
+      showToast("Tu resumen quedó copiado para compartir.");
+    }
+  } catch (error) {
+    if (error.name !== "AbortError") showToast("No pudimos compartir el resumen.");
+  }
 }
 
 function handleAuthResult() {
@@ -288,14 +374,33 @@ async function detectSession() {
 }
 
 $$('.range-button').forEach((button) => {
+  button.classList.toggle("active", button.dataset.range === currentRange);
   button.addEventListener("click", async () => {
     $$('.range-button').forEach((item) => item.classList.remove("active"));
     button.classList.add("active");
     currentRange = button.dataset.range;
+    localStorage.setItem("frecuencia_range", currentRange);
     if (authenticated) await loadLiveData(currentRange);
     else render(demoData[currentRange]);
   });
 });
+
+$("#artist-toggle").addEventListener("click", () => {
+  showAllArtists = !showAllArtists;
+  render(currentData);
+});
+
+$("#track-toggle").addEventListener("click", () => {
+  showAllTracks = !showAllTracks;
+  render(currentData);
+});
+
+$("#refresh-button").addEventListener("click", async () => {
+  const updated = await loadLiveData(currentRange, true);
+  if (updated) showToast("Tus datos se actualizaron con Spotify.");
+});
+
+$("#share-button").addEventListener("click", shareReport);
 
 $("#connect-button").addEventListener("click", (event) => {
   if ($("#connect-button").dataset.authAction === "logout") return;

@@ -43,10 +43,22 @@
           <h1 id="page-title">Tu ADN musical</h1>
           <p id="period-copy" class="intro-copy">Lo que más te definió durante las últimas 4 semanas.</p>
         </div>
-        <div class="range-switcher" role="group" aria-label="Período de análisis">
-          <button class="range-button active" type="button" data-range="short_term">4 semanas</button>
-          <button class="range-button" type="button" data-range="medium_term">6 meses</button>
-          <button class="range-button" type="button" data-range="long_term">1 año</button>
+        <div class="intro-controls">
+          <div class="range-switcher" role="group" aria-label="Período de análisis">
+            <button class="range-button active" type="button" data-range="short_term">4 semanas</button>
+            <button class="range-button" type="button" data-range="medium_term">6 meses</button>
+            <button class="range-button" type="button" data-range="long_term">1 año</button>
+          </div>
+          <div id="report-actions" class="report-actions" hidden>
+            <button id="refresh-button" class="utility-button" type="button" aria-label="Actualizar datos de Spotify">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7"/></svg>
+              Actualizar
+            </button>
+            <button id="share-button" class="utility-button accent" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V3m0 0L7 8m5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>
+              Compartir
+            </button>
+          </div>
         </div>
       </section>
 
@@ -126,6 +138,33 @@
         </article>
       </section>
 
+      <section class="metrics-grid" aria-label="Tus números musicales">
+        <article class="metric-card">
+          <span class="metric-index">01</span>
+          <p class="card-kicker">Popularidad media</p>
+          <p class="metric-value"><strong id="metric-mainstream">66</strong><small>/100</small></p>
+          <p>Qué tan conocidos son tus favoritos.</p>
+        </article>
+        <article class="metric-card">
+          <span class="metric-index">02</span>
+          <p class="card-kicker">Era dominante</p>
+          <p class="metric-value"><strong id="metric-era">2020s</strong></p>
+          <p>La década que más aparece en tu top.</p>
+        </article>
+        <article class="metric-card">
+          <span class="metric-index">03</span>
+          <p class="card-kicker">Duración media</p>
+          <p class="metric-value"><strong id="metric-duration">3:36</strong></p>
+          <p>El pulso promedio de tus canciones.</p>
+        </article>
+        <article class="metric-card">
+          <span class="metric-index">04</span>
+          <p class="card-kicker">Contenido explícito</p>
+          <p class="metric-value"><strong id="metric-explicit">28</strong><small>%</small></p>
+          <p>Proporción dentro de tus temas favoritos.</p>
+        </article>
+      </section>
+
       <section class="content-grid">
         <article id="artistas" class="card ranking-card">
           <div class="section-heading">
@@ -133,7 +172,7 @@
               <p class="card-kicker">Afinidad</p>
               <h2>Artistas que te definen</h2>
             </div>
-            <span class="section-meta">Top 5</span>
+            <button id="artist-toggle" class="list-toggle" type="button" aria-expanded="false">Ver Top 10</button>
           </div>
           <ol id="artist-list" class="artist-list"></ol>
         </article>
@@ -156,7 +195,7 @@
               <p class="card-kicker">En repetición</p>
               <h2>Canciones esenciales</h2>
             </div>
-            <span class="section-meta">Top 5</span>
+            <button id="track-toggle" class="list-toggle" type="button" aria-expanded="false">Ver Top 10</button>
           </div>
           <ol id="track-list" class="track-list"></ol>
         </article>
