@@ -500,7 +500,7 @@ function setLoading(isLoading) {
   }
 }
 
-function setSignedIn() {
+function setSignedIn(profile) {
   authenticated = true;
   $("#mode-pill").classList.add("live");
   $("#mode-pill").innerHTML = "<span></span> Datos reales";
@@ -508,6 +508,23 @@ function setSignedIn() {
   $("#connect-button").innerHTML = "Cerrar sesión";
   $("#connect-button").href = "/auth/logout";
   $("#connect-button").dataset.authAction = "logout";
+  const profileElement = $("#user-profile");
+  const profileName = profile?.displayName || profile?.username || "Spotify";
+  $("#user-profile-name").textContent = profileName;
+  const avatar = $("#user-profile-avatar");
+  avatar.replaceChildren();
+  if (profile?.image) {
+    const image = document.createElement("img");
+    image.src = safeUrl(profile.image);
+    image.alt = "";
+    avatar.appendChild(image);
+  } else {
+    avatar.textContent = initials(profileName);
+  }
+  profileElement.href = profile?.url ? safeUrl(profile.url) : "https://open.spotify.com/";
+  profileElement.title = profile?.username ? `Perfil de ${profile.username} en Spotify` : "Perfil de Spotify";
+  profileElement.setAttribute("aria-label", `Abrir el perfil de ${profileName} en Spotify`);
+  profileElement.hidden = false;
   $("#report-actions").hidden = false;
 }
 
@@ -521,6 +538,7 @@ function setSignedOut() {
     Conectar Spotify`;
   $("#connect-button").href = "/auth/login";
   $("#connect-button").dataset.authAction = "login";
+  $("#user-profile").hidden = true;
   $("#report-actions").hidden = true;
 }
 
@@ -569,7 +587,7 @@ async function detectSession() {
     apiAvailable = true;
     spotifyConfigured = status.configured;
     if (status.authenticated) {
-      setSignedIn();
+      setSignedIn(status.profile);
       await loadLiveData(currentRange);
     } else {
       setSignedOut();

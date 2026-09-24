@@ -67,7 +67,7 @@ INSIGHTS_CACHE_TTL_SECONDS = int(
 TOKEN_TTL_SECONDS = 60 * 60 * 24 * 180
 GENRE_CACHE_TTL_SECONDS = 60 * 60 * 24 * 30
 CACHE_SCHEMA_VERSION = "v3"
-SCOPES = "user-top-read"
+SCOPES = "user-top-read user-read-private"
 MUSICBRAINZ_API = "https://musicbrainz.org/ws/2/artist/"
 MUSICBRAINZ_USER_AGENT = os.getenv(
     "MUSICBRAINZ_USER_AGENT",
@@ -841,7 +841,24 @@ def auth_status(request: Request, response: Response) -> dict[str, Any]:
     except Exception:
         oauth.cache_handler.delete()
         authenticated = False
-    return {"authenticated": authenticated, "configured": True}
+    profile = None
+    if authenticated:
+        try:
+            user = spotify_client(request).current_user()
+            images = user.get("images") or []
+            profile = {
+                "displayName": user.get("display_name") or user.get("id") or "Spotify",
+                "username": user.get("id"),
+                "image": images[0].get("url") if images else None,
+                "url": (user.get("external_urls") or {}).get("spotify"),
+            }
+        except Exception:
+            profile = None
+    return {
+        "authenticated": authenticated,
+        "configured": True,
+        "profile": profile,
+    }
 
 
 @app.get("/auth/login")

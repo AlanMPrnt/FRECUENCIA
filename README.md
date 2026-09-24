@@ -5,6 +5,7 @@ Aplicación web pública para que cada usuario conecte Spotify y vea sus artista
 ## Funcionalidad
 
 - Login individual con Spotify.
+- Nombre visible y foto de perfil junto al cierre de sesión.
 - Afinidad musical para 4 semanas, 6 meses y aproximadamente 1 año.
 - Top 50 en vivo de artistas y canciones, el máximo que entrega la API por período.
 - Géneros verificados con el dato de Spotify y respaldo de MusicBrainz cuando Spotify devuelve el campo vacío.
@@ -39,7 +40,7 @@ También se admite el formato anterior `StreamingHistory*.json`, aunque normalme
 
 ### Qué más permite investigar el historial ampliado
 
-Spotify no ofrece una API para pedir o descargar automáticamente el archivo de privacidad: el titular debe solicitarlo desde la página de su cuenta y luego elegir los JSON en Frecuencia. El historial ampliado contiene información suficiente para calcular, entre otras cosas:
+Spotify no ofrece un scope ni una API para pedir o descargar automáticamente el archivo de privacidad: el titular debe solicitarlo desde la página de su cuenta y luego elegir los JSON en Frecuencia. La interfaz enlaza directamente a esa solicitud y guía los tres pasos. El historial ampliado contiene información suficiente para calcular, entre otras cosas:
 
 - reproducciones y tiempo exacto por canción, artista, álbum, día, hora y año;
 - tasas de salto, escucha completa aproximada y motivos de inicio o finalización;
@@ -49,6 +50,10 @@ Spotify no ofrece una API para pedir o descargar automáticamente el archivo de 
 - descubrimiento, retención y vida útil de un artista o canción en la biblioteca personal.
 
 El ZIP también puede incluir datos sensibles como IP, país, plataforma, agente de usuario y sesiones privadas. La versión actual procesa el historial dentro del navegador, no lo envía al servidor y no necesita mostrar ni conservar IP, nombre de usuario o agente de usuario para construir el ranking. Cualquier ampliación deberá mantener esa minimización de datos.
+
+### Por qué se mantiene Spotipy
+
+El enfoque recomendado es híbrido. Spotipy permite iniciar sesión y mostrar inmediatamente el perfil, las imágenes, los enlaces y los rankings de afinidad actuales. El JSON aporta el historial completo y los recuentos exactos, pero debe pedirse manualmente, puede tardar en estar disponible y no reemplaza toda la metadata visual de la Web API. Técnicamente Spotipy podría sustituirse por llamadas HTTP directas, pero eso no elimina la necesidad de OAuth ni mejora la experiencia del usuario.
 
 ## 1. Crear la aplicación en Spotify
 
@@ -123,7 +128,7 @@ Para permitir el login de cualquier usuario necesitás solicitar **Extended Quot
 
 ## Privacidad y seguridad
 
-- La app solicita solamente `user-top-read`.
+- La app solicita `user-top-read` para los rankings y `user-read-private` para mostrar el nombre y la imagen del perfil conectado.
 - El navegador recibe una cookie de sesión firmada, nunca el access token ni el refresh token de Spotify.
 - Los resultados personalizados se devuelven con `Cache-Control: private, no-store`.
 - Cerrar sesión elimina el token y la caché asociados.

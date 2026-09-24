@@ -29,6 +29,10 @@
       </a>
       <div class="topbar-actions">
         <span id="mode-pill" class="mode-pill" aria-live="polite"><span></span> Vista de ejemplo</span>
+        <a id="user-profile" class="user-profile" href="#" target="_blank" rel="noreferrer" hidden>
+          <span id="user-profile-avatar" class="user-profile-avatar" aria-hidden="true"></span>
+          <span id="user-profile-name" class="user-profile-name"></span>
+        </a>
         <a id="connect-button" class="connect-button" href="/auth/login" data-auth-action="login">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm4.59 14.42a.62.62 0 0 1-.85.2c-2.34-1.43-5.29-1.75-8.76-.96a.62.62 0 1 1-.28-1.2c3.8-.87 7.08-.5 9.68 1.08.29.18.39.57.2.88Zm1.21-2.7a.78.78 0 0 1-1.07.25c-2.68-1.65-6.77-2.12-9.94-1.16a.78.78 0 1 1-.45-1.49c3.63-1.1 8.14-.57 11.2 1.32.37.22.48.7.26 1.07Zm.1-2.8C14.68 7 9.37 6.63 6.3 7.56a.93.93 0 1 1-.54-1.78c3.53-1.07 9.4-.63 13.1 1.57a.93.93 0 0 1-.96 1.6Z"/></svg>
           Conectar Spotify
@@ -231,8 +235,13 @@
             <p>O elegí todos los archivos <strong>Streaming_History_Audio_*.json</strong> del ZIP de Spotify.</p>
           </div>
           <label class="history-file-button" for="history-files">Seleccionar archivos</label>
-          <a class="history-help" href="https://www.spotify.com/account/privacy/" target="_blank" rel="noreferrer">Pedir mis datos en Spotify ↗</a>
+          <a class="history-help" href="https://www.spotify.com/account/privacy/" target="_blank" rel="noreferrer">1. Pedir historial ampliado ↗</a>
         </div>
+        <ol class="history-steps" aria-label="Cómo importar el historial de Spotify">
+          <li><strong>Pedilo</strong><span>Abrí Privacidad de Spotify y solicitá el historial ampliado.</span></li>
+          <li><strong>Esperá el email</strong><span>Spotify prepara el ZIP y te avisa cuando esté disponible.</span></li>
+          <li><strong>Importalo</strong><span>Descomprimí el ZIP y elegí todos los JSON de audio.</span></li>
+        </ol>
 
         <div id="history-results" class="history-results" hidden>
           <div class="history-summary" aria-label="Resumen del historial">
