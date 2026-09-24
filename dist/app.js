@@ -2,17 +2,16 @@ const demoData = {
   short_term: {
     label: "Ahora",
     description: "Lo que más te definió durante las últimas 4 semanas.",
-    profile: "Nocturno e inquieto",
-    diversity: 78,
-    change: 23,
-    changeNote: "Tu rotación cambió más que el mes pasado. Hay 7 artistas nuevos en tu top.",
+    profile: "alt pop × indie",
+    genreSampleSize: 20,
+    genreSource: "Datos de ejemplo",
     analyzedTracks: 50,
     analyzedArtists: 50,
     era: "2020s",
     averageDuration: "3:36",
     explicitShare: 28,
     genreCount: 14,
-    genreInsight: "El pop alternativo conecta casi la mitad de tus artistas favoritos.",
+    genreInsight: "alt pop aparece en 7 de los 20 artistas usados para esta demostración.",
     genres: [["alt pop", 18], ["indie", 15], ["urbano", 13], ["electrónica", 10], ["neo-psychedelia", 8], ["art pop", 7], ["rap argentino", 6], ["dream pop", 5]],
     artists: [
       { name: "Tame Impala", genre: "neo-psychedelia", movement: 3, color: "#b796ff" },
@@ -39,25 +38,24 @@ const demoData = {
       { name: "Motion Sickness", artist: "Phoebe Bridgers", color: "#72d8ff" }
     ],
     insights: [
-      ["Más curioso que de costumbre", "Tres de cada diez artistas entraron a tu radar este mes."],
-      ["Tu escucha cruza escenas", "Saltás del indie psicodélico al urbano sin perder el hilo."],
-      ["Melancolía bailable", "Tu selección combina introspección, pulso y texturas nocturnas."]
+      { title: "7 entradas en el Top 20", copy: "La demostración compara miembros del ranking, no reproducciones.", facts: ["13 artistas se repiten", "7 entran y 7 salen", "Comparación contra 6 meses"] },
+      { title: "alt pop encabeza la muestra", copy: "Es el género con más presencia ponderada en este ejemplo.", facts: ["7 de 20 artistas", "14 géneros distintos", "Fuente: datos de demostración"] },
+      { title: "La mitad central es reciente", copy: "El rango intercuartílico evita que un lanzamiento extremo distorsione la lectura.", facts: ["Año mediano: 2023", "28% de colaboraciones", "43 artistas acreditados"] }
     ]
   },
   medium_term: {
     label: "Últimos 6 meses",
     description: "La música que sostuvo tu ritmo durante los últimos 6 meses.",
-    profile: "Ecléctico y emocional",
-    diversity: 71,
-    change: 16,
-    changeNote: "Tu núcleo se mantiene estable, aunque el pop experimental ganó terreno.",
+    profile: "indie × alt pop",
+    genreSampleSize: 20,
+    genreSource: "Datos de ejemplo",
     analyzedTracks: 50,
     analyzedArtists: 50,
     era: "2010s",
     averageDuration: "3:42",
     explicitShare: 22,
     genreCount: 17,
-    genreInsight: "El indie funciona como puente entre tus momentos calmos y enérgicos.",
+    genreInsight: "indie aparece en 7 de los 20 artistas usados para esta demostración.",
     genres: [["indie", 20], ["alt pop", 17], ["R&B", 13], ["urbano", 11], ["rock argentino", 9], ["art pop", 8], ["electrónica", 6], ["neo soul", 5]],
     artists: [
       { name: "Rosalía", genre: "art pop", movement: 2, color: "#ff8760" },
@@ -84,25 +82,24 @@ const demoData = {
       { name: "Delilah (pull me out of this)", artist: "Fred again..", color: "#72d8ff" }
     ],
     insights: [
-      ["Exploración con ancla", "Descubrís artistas nuevos sin abandonar tu núcleo de siempre."],
-      ["Los discos importan", "Tus canciones favoritas se agrupan en menos álbumes de lo habitual."],
-      ["Texturas antes que géneros", "Preferís atmósferas similares aunque cambie la escena musical."]
+      { title: "7 entradas en el Top 20", copy: "La demostración compara miembros del ranking, no reproducciones.", facts: ["13 artistas se repiten", "7 entran y 7 salen", "Comparación contra 1 año"] },
+      { title: "indie encabeza la muestra", copy: "Es el género con más presencia ponderada en este ejemplo.", facts: ["7 de 20 artistas", "17 géneros distintos", "Fuente: datos de demostración"] },
+      { title: "La mitad central cruza seis años", copy: "El rango intercuartílico resume los años de lanzamiento sin adjetivos subjetivos.", facts: ["Año mediano: 2020", "22% de colaboraciones", "39 artistas acreditados"] }
     ]
   },
   long_term: {
     label: "Último año",
     description: "Los nombres y sonidos que construyeron tu último año.",
-    profile: "Intenso y nostálgico",
-    diversity: 64,
-    change: 31,
-    changeNote: "Tu presente se alejó bastante del núcleo que dominaba al comienzo del año.",
+    profile: "alternative R&B × indie",
+    genreSampleSize: 20,
+    genreSource: "Datos de ejemplo",
     analyzedTracks: 50,
     analyzedArtists: 50,
     era: "2010s",
     averageDuration: "3:51",
     explicitShare: 32,
     genreCount: 19,
-    genreInsight: "El R&B alternativo es la constante que sobrevive a todos tus cambios.",
+    genreInsight: "alternative R&B aparece en 7 de los 20 artistas usados para esta demostración.",
     genres: [["alternative R&B", 22], ["indie", 18], ["alt pop", 14], ["rock", 12], ["urbano", 10], ["neo soul", 8], ["dream pop", 6], ["electrónica", 5]],
     artists: [
       { name: "Frank Ocean", genre: "alternative R&B", movement: 0, color: "#ff89c0" },
@@ -129,9 +126,9 @@ const demoData = {
       { name: "West Coast", artist: "Lana Del Rey", color: "#72d8ff" }
     ],
     insights: [
-      ["Un año de retornos", "Tus favoritos históricos reaparecen entre cada nueva obsesión."],
-      ["La voz manda", "Las voces expresivas dominan incluso cuando cambia el género."],
-      ["Nostalgia en movimiento", "Volvés a canciones conocidas, pero las mezclás con hallazgos recientes."]
+      { title: "7 entradas en el Top 20", copy: "La demostración compara miembros del ranking, no reproducciones.", facts: ["13 artistas se repiten", "7 entran y 7 salen", "Comparación entre muestras"] },
+      { title: "alternative R&B lidera", copy: "Es el género con más presencia ponderada en este ejemplo.", facts: ["7 de 20 artistas", "19 géneros distintos", "Fuente: datos de demostración"] },
+      { title: "La muestra cruza décadas", copy: "La amplitud temporal separa el lanzamiento más antiguo del más nuevo.", facts: ["Rango: 1983–2025", "8.1 géneros efectivos", "42 álbumes distintos"] }
     ]
   }
 };
@@ -173,9 +170,24 @@ function safeUrl(value) {
 }
 
 function movementMarkup(value) {
+  if (value === null || value === undefined) return '<span class="movement new">nuevo</span>';
   if (value > 0) return `<span class="movement up">↗ ${value}</span>`;
   if (value < 0) return `<span class="movement down">↘ ${Math.abs(value)}</span>`;
   return `<span class="movement steady">—</span>`;
+}
+
+function normalizedGenres(data) {
+  return (Array.isArray(data.genres) ? data.genres : []).map((item, index) => {
+    if (!Array.isArray(item)) return item;
+    const demoCounts = [7, 6, 5, 4, 3, 3, 2, 2];
+    return {
+      name: item[0],
+      weight: Math.min(100, Math.round((item[1] || 1) / Math.max(data.genres[0]?.[1] || 1, 1) * 100)),
+      artistCount: demoCounts[index] || 1,
+      artistShare: Math.round((demoCounts[index] || 1) / 20 * 100),
+      artists: (data.artists || []).slice(index, index + 3).map((artist) => artist.name)
+    };
+  }).filter((genre) => genre?.name);
 }
 
 function render(data) {
@@ -183,18 +195,71 @@ function render(data) {
   $("#period-copy").textContent = data.description;
   $("#period-label").textContent = data.label;
   $("#profile-name").textContent = data.profile;
-  $("#diversity-score").textContent = data.diversity;
-  $("#change-score").textContent = data.change;
-  $("#change-note").textContent = data.changeNote;
   $("#metric-track-count").textContent = Number.isFinite(data.analyzedTracks) ? data.analyzedTracks : (data.tracks?.length || "—");
   $("#metric-era").textContent = data.era || "—";
   $("#metric-duration").textContent = data.averageDuration || "—";
   $("#metric-explicit").textContent = Number.isFinite(data.explicitShare) ? data.explicitShare : "—";
-  $("#genre-count").textContent = `${data.genreCount} géneros`;
+  const genres = normalizedGenres(data);
+  const topGenre = genres[0] || null;
+  $("#primary-genre").textContent = topGenre?.name || "sin datos";
+  $("#primary-genre-proof").textContent = topGenre ? `${topGenre.artistCount} de ${data.genreSampleSize || 20} artistas` : "sin etiquetas de relleno";
+  $("#genre-source-label").innerHTML = `<i class="dot dot-orange"></i> ${escapeHtml(data.genreSource || "Spotify")}`;
+  $("#genre-count").textContent = genres.length ? `${data.genreCount || genres.length} géneros` : "sin datos verificados";
   $("#genre-insight").innerHTML = `<span>01</span> ${escapeHtml(data.genreInsight)}`;
 
   const artists = Array.isArray(data.artists) ? data.artists : [];
   const tracks = Array.isArray(data.tracks) ? data.tracks : [];
+  const comparison = data.comparison || {
+    label: currentRange === "short_term" ? "Últimos 6 meses" : "Último año",
+    sampleSize: 20,
+    sharedCount: 13,
+    enteredCount: 7,
+    exitedCount: 7,
+    entered: artists.slice(0, 4).map((artist) => artist.name)
+  };
+  $("#comparison-title").textContent = `Cambios del Top ${comparison.sampleSize || 20}`;
+  $("#comparison-label").textContent = `vs ${comparison.label.toLocaleLowerCase("es")}`;
+  $("#comparison-shared").textContent = comparison.sharedCount;
+  $("#comparison-entered").textContent = comparison.enteredCount;
+  $("#comparison-exited").textContent = comparison.exitedCount;
+  $("#comparison-entered-names").textContent = comparison.entered?.length
+    ? `${comparison.entered.join(", ")}.`
+    : "No hubo entradas nuevas en este Top 20.";
+  const science = data.dataScience || {
+    sampleSize: 50,
+    effectiveGenreCount: currentRange === "short_term" ? 6.8 : currentRange === "medium_term" ? 7.4 : 8.1,
+    medianReleaseYear: currentRange === "short_term" ? 2023 : 2020,
+    releaseYearQ1: 2018,
+    releaseYearQ3: 2024,
+    collaborationCount: currentRange === "short_term" ? 14 : 11,
+    collaborationShare: currentRange === "short_term" ? 28 : 22,
+    uniqueTrackArtists: currentRange === "short_term" ? 43 : 39,
+    uniqueAlbums: currentRange === "short_term" ? 45 : 42,
+    mostPresentAlbumName: "Álbum más presente",
+    mostPresentAlbumCount: 3,
+    oldestReleaseYear: 1983,
+    newestReleaseYear: 2025,
+    medianReleaseAge: currentRange === "short_term" ? 2 : 5
+  };
+  $("#science-sample").textContent = `Muestra: Top ${science.sampleSize || tracks.length} de afinidad · Spotify`;
+  $("#science-effective-genres").textContent = Number.isFinite(science.effectiveGenreCount) ? `${science.effectiveGenreCount}` : "—";
+  $("#science-median-year").textContent = science.medianReleaseYear || "—";
+  $("#science-year-band").textContent = science.releaseYearQ1 && science.releaseYearQ3
+    ? `La mitad central va de ${science.releaseYearQ1} a ${science.releaseYearQ3}.`
+    : "No hay suficientes fechas para calcularlo.";
+  $("#science-collabs").textContent = `${science.collaborationShare || 0}%`;
+  $("#science-collabs-copy").textContent = `${science.collaborationCount || 0} de ${science.sampleSize || tracks.length} canciones tienen más de un artista.`;
+  $("#science-track-artists").textContent = science.uniqueTrackArtists ?? "—";
+  $("#science-albums").textContent = science.uniqueAlbums ?? "—";
+  $("#science-album-copy").textContent = science.mostPresentAlbumName
+    ? `${science.mostPresentAlbumName}: ${science.mostPresentAlbumCount} canciones del Top.`
+    : "No hay álbumes suficientes para calcularlo.";
+  $("#science-year-span").textContent = science.oldestReleaseYear && science.newestReleaseYear
+    ? `${science.oldestReleaseYear}–${science.newestReleaseYear}`
+    : "—";
+  $("#science-age-copy").textContent = Number.isFinite(science.medianReleaseAge)
+    ? `La canción central tiene ${science.medianReleaseAge} años de antigüedad.`
+    : "No hay fechas suficientes para calcularlo.";
   const lead = artists[0] || {
     name: "Sin datos todavía",
     genre: "Escuchá un poco más y volvé",
@@ -204,9 +269,13 @@ function render(data) {
   $("#lead-artist-name").textContent = lead.name;
   $("#lead-artist-initials").textContent = initials(lead.name);
   $("#lead-artist-genre").textContent = lead.genre;
-  $("#lead-artist-rank").textContent = lead.movement > 0 ? `↗ ${lead.movement}` : lead.movement < 0 ? `↘ ${Math.abs(lead.movement)}` : "—";
-  $("#lead-artist-rank").className = `rank-change ${lead.movement < 0 ? "down" : "up"}`;
-  $("#lead-artist-note").textContent = lead.note || (lead.movement > 0 ? `Subió ${lead.movement} lugares en este período.` : "Se mantiene firme en tu núcleo musical.");
+  $("#lead-artist-rank").textContent = lead.movement === null || lead.movement === undefined ? "nuevo" : lead.movement > 0 ? `↗ ${lead.movement}` : lead.movement < 0 ? `↘ ${Math.abs(lead.movement)}` : "—";
+  $("#lead-artist-rank").className = `rank-change ${lead.movement < 0 ? "down" : lead.movement == null ? "new" : "up"}`;
+  $("#lead-artist-note").textContent = lead.note || (lead.movement == null
+    ? `Spotify lo ubica primero en ${data.label.toLocaleLowerCase("es")}; no estaba en el Top 20 de comparación.`
+    : lead.movement > 0
+      ? `Subió ${lead.movement} lugares frente a ${comparison.label.toLocaleLowerCase("es")}.`
+      : `Spotify lo ubica primero por afinidad en ${data.label.toLocaleLowerCase("es")}.`);
   const leadImage = lead.image ? safeUrl(lead.image) : null;
   $("#lead-artist-link").style.background = leadImage && leadImage !== "#" ? `linear-gradient(rgba(15,15,18,.12), rgba(15,15,18,.42)), url('${leadImage}') center/cover` : `linear-gradient(145deg, ${lead.color || "#9e73ff"}, #2b184b 52%, #ff7547)`;
   $("#lead-artist-link").href = lead.url ? safeUrl(lead.url) : "#artistas";
@@ -217,16 +286,28 @@ function render(data) {
         <span class="position">${String(index + 1).padStart(2, "0")}</span>
         <span class="artist-avatar" style="--accent:${artist.color || "#a58aff"}">${artist.image ? `<img src="${safeUrl(artist.image)}" alt="" loading="lazy" />` : escapeHtml(initials(artist.name))}</span>
         <span><span class="artist-name">${escapeHtml(artist.name)}</span><span class="artist-genre">${escapeHtml((artist.genres || []).join(" · ") || artist.genre || "Sin género principal")}</span></span>
-        ${movementMarkup(artist.movement ?? 0)}
+        ${movementMarkup(artist.movement)}
       </a>
     </li>`).join("") : '<li class="empty-result">Spotify todavía no tiene suficiente historial para este período.</li>';
 
-  $("#genre-cloud").innerHTML = data.genres.slice(0, 10).map(([genre, weight], index) => `
-    <span class="genre-chip ${index === 0 ? "primary" : index < 3 ? "secondary" : ""}" style="--size:${.76 + Math.min(weight, 22) / 55}rem;--lift:${(index % 3 - 1) * 4}px">${escapeHtml(genre)}</span>`).join("");
+  $("#genre-cloud").innerHTML = genres.length ? genres.slice(0, 10).map((genre, index) => `
+    <span class="genre-chip ${index === 0 ? "primary" : index < 3 ? "secondary" : ""}" style="--size:${.78 + genre.weight / 240}rem;--lift:${(index % 3 - 1) * 4}px">${escapeHtml(genre.name)} <small>${genre.artistCount}</small></span>`).join("") : '<p class="genre-empty">No hay géneros verificados para este período. Nunca los reemplazamos con etiquetas inventadas.</p>';
+
+  $("#genre-breakdown").innerHTML = genres.length ? genres.slice(0, 8).map((genre) => `
+    <div class="genre-breakdown-row">
+      <div><strong>${escapeHtml(genre.name)}</strong><span>${genre.artistCount} de ${data.genreSampleSize || 20} artistas</span></div>
+      <div class="genre-bar" aria-label="${genre.artistShare}% de los artistas"><span style="width:${genre.artistShare}%"></span></div>
+      <p>${escapeHtml((genre.artists || []).join(", ") || "Sin artistas asociados")}</p>
+    </div>`).join("") : "";
 
   ["node-a", "node-b", "node-c", "node-d"].forEach((id, index) => {
-    const genre = data.genres[index]?.[0] || "descubrimiento";
-    $(`#${id} span`).textContent = genre;
+    const genre = genres[index];
+    const node = $(`#${id}`);
+    node.hidden = !genre;
+    if (genre) {
+      node.style.setProperty("--node-scale", String(.82 + genre.weight / 550));
+      node.querySelector("span").textContent = genre.name;
+    }
   });
 
   $("#track-list").innerHTML = tracks.length ? tracks.slice(0, 50).map((track, index) => `
@@ -247,10 +328,15 @@ function render(data) {
   updateListToggle($("#artist-toggle"), showAllArtists, artists.length);
   updateListToggle($("#track-toggle"), showAllTracks, tracks.length);
 
-  const insightIds = [["discovery-title", "discovery-copy"], ["pattern-title", "pattern-copy"], ["signature-title", "signature-copy"]];
-  insightIds.forEach(([titleId, copyId], index) => {
-    $(`#${titleId}`).textContent = data.insights[index][0];
-    $(`#${copyId}`).textContent = data.insights[index][1];
+  const insightIds = [["discovery-title", "discovery-copy", "discovery-facts"], ["pattern-title", "pattern-copy", "pattern-facts"], ["signature-title", "signature-copy", "signature-facts"]];
+  insightIds.forEach(([titleId, copyId, factsId], index) => {
+    const rawInsight = data.insights[index];
+    const insight = Array.isArray(rawInsight)
+      ? { title: rawInsight[0], copy: rawInsight[1], facts: ["Detalle disponible al conectar Spotify."] }
+      : rawInsight || { title: "Sin datos suficientes", copy: "Spotify todavía no devolvió una muestra analizable.", facts: [] };
+    $(`#${titleId}`).textContent = insight.title;
+    $(`#${copyId}`).textContent = insight.copy;
+    $(`#${factsId}`).innerHTML = (insight.facts || []).map((fact) => `<li>${escapeHtml(fact)}</li>`).join("");
   });
 }
 
@@ -442,7 +528,7 @@ async function shareReport() {
   if (!authenticated || !currentData) return;
   const leadArtist = currentData.artists?.[0]?.name || "mi artista favorito";
   const leadGenre = currentData.genres?.[0]?.[0] || "una mezcla única";
-  const summary = `Mi Frecuencia · ${currentData.label}: ${currentData.profile}. Mi artista #1 es ${leadArtist}, mi género principal es ${leadGenre} y mi variedad musical es ${currentData.diversity}/100.`;
+  const summary = `Mi Frecuencia · ${currentData.label}: mi artista #1 según Spotify es ${leadArtist} y el género con mayor presencia es ${leadGenre}.`;
   try {
     if (navigator.share) {
       await navigator.share({ title: "Mi Frecuencia", text: summary, url: location.origin });

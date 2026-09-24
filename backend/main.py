@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import sqlite3
 import time
-from collections import Counter
+import unicodedata
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
+from urllib.request import Request as URLRequest, urlopen
 
 import spotipy
 from dotenv import load_dotenv
@@ -25,6 +28,9 @@ from backend.analytics import (
     average_track_duration,
     explicit_share,
     favorite_decade,
+    genre_breakdown,
+    ranked_track_statistics,
+    ranking_comparison,
 )
 
 
@@ -59,7 +65,14 @@ INSIGHTS_CACHE_TTL_SECONDS = int(
     os.getenv("INSIGHTS_CACHE_TTL_SECONDS", "600")
 )
 TOKEN_TTL_SECONDS = 60 * 60 * 24 * 180
+GENRE_CACHE_TTL_SECONDS = 60 * 60 * 24 * 30
+CACHE_SCHEMA_VERSION = "v3"
 SCOPES = "user-top-read"
+MUSICBRAINZ_API = "https://musicbrainz.org/ws/2/artist/"
+MUSICBRAINZ_USER_AGENT = os.getenv(
+    "MUSICBRAINZ_USER_AGENT",
+    "Frecuencia/0.5 (https://github.com/AlanMPrnt/FRECUENCIA)",
+)
 
 if IS_PRODUCTION:
     missing = []
@@ -125,6 +138,15 @@ def open_database() -> sqlite3.Connection:
             payload TEXT NOT NULL,
             expires_at INTEGER NOT NULL,
             PRIMARY KEY (session_id, time_range)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS artist_genres (
+            artist_key TEXT PRIMARY KEY,
+            genres TEXT NOT NULL,
+            expires_at INTEGER NOT NULL
         )
         """
     )
@@ -201,7 +223,10 @@ class RedisTokenCache(CacheHandler):
     def delete(self) -> None:
         keys = [
             self.key,
-            *(f"frecuencia:insights:{self.session_id}:{item}" for item in RANGE_COPY),
+            *(
+                f"frecuencia:insights:{CACHE_SCHEMA_VERSION}:{self.session_id}:{item}"
+                for item in RANGE_COPY
+            ),
         ]
         self.client.delete(*keys)
 
@@ -213,8 +238,11 @@ def token_cache_for(session_id: str) -> CacheHandler:
 
 
 def cached_insights(session_id: str, time_range: str) -> dict[str, Any] | None:
+    cache_range = f"{CACHE_SCHEMA_VERSION}:{time_range}"
     if redis_client is not None:
-        value = redis_client.get(f"frecuencia:insights:{session_id}:{time_range}")
+        value = redis_client.get(
+            f"frecuencia:insights:{CACHE_SCHEMA_VERSION}:{session_id}:{time_range}"
+        )
         return json.loads(value) if value else None
 
     now = int(time.time())
@@ -224,7 +252,7 @@ def cached_insights(session_id: str, time_range: str) -> dict[str, Any] | None:
             SELECT payload FROM spotify_insights
             WHERE session_id = ? AND time_range = ? AND expires_at > ?
             """,
-            (session_id, time_range, now),
+            (session_id, cache_range, now),
         ).fetchone()
         connection.execute(
             "DELETE FROM spotify_insights WHERE expires_at <= ?", (now,)
@@ -235,10 +263,11 @@ def cached_insights(session_id: str, time_range: str) -> dict[str, Any] | None:
 def cache_insights(
     session_id: str, time_range: str, payload: dict[str, Any]
 ) -> None:
+    cache_range = f"{CACHE_SCHEMA_VERSION}:{time_range}"
     serialized = json.dumps(payload, ensure_ascii=False)
     if redis_client is not None:
         redis_client.setex(
-            f"frecuencia:insights:{session_id}:{time_range}",
+            f"frecuencia:insights:{CACHE_SCHEMA_VERSION}:{session_id}:{time_range}",
             INSIGHTS_CACHE_TTL_SECONDS,
             serialized,
         )
@@ -255,7 +284,7 @@ def cache_insights(
             """,
             (
                 session_id,
-                time_range,
+                cache_range,
                 serialized,
                 int(time.time()) + INSIGHTS_CACHE_TTL_SECONDS,
             ),
@@ -304,6 +333,221 @@ def spotify_client(request: Request) -> spotipy.Spotify:
     return spotipy.Spotify(auth_manager=oauth, requests_timeout=10, retries=2)
 
 
+GENRE_ALIASES = {
+    "hip-hop": "hip hop",
+    "hiphop": "hip hop",
+    "synthpop": "synth-pop",
+    "rnb": "R&B",
+    "r&b": "R&B",
+    "rhythm and blues": "R&B",
+    "neo psychedelic": "neo-psychedelia",
+    "neo-psychedelic": "neo-psychedelia",
+    "electronica": "electrónica",
+    "electronic": "electrónica",
+    "latin trap": "trap latino",
+    "argentine rock": "rock argentino",
+    "argentinian rock": "rock argentino",
+}
+GENRE_KEYWORDS = (
+    "ambient",
+    "alternative",
+    "art pop",
+    "blues",
+    "classical",
+    "cumbia",
+    "dance",
+    "disco",
+    "dream pop",
+    "electro",
+    "emo",
+    "experimental",
+    "folk",
+    "funk",
+    "garage",
+    "gospel",
+    "grunge",
+    "hardcore",
+    "hip hop",
+    "hip-hop",
+    "house",
+    "indie",
+    "jazz",
+    "latin",
+    "metal",
+    "neo-psy",
+    "new wave",
+    "pop",
+    "post-punk",
+    "post-rock",
+    "psychedelic",
+    "punk",
+    "rap",
+    "reggae",
+    "reggaeton",
+    "rock",
+    "salsa",
+    "shoegaze",
+    "ska",
+    "soul",
+    "synth",
+    "tango",
+    "techno",
+    "trap",
+    "trip hop",
+    "urbano",
+)
+
+
+def normalize_artist_key(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", value)
+    without_accents = "".join(
+        character for character in normalized if not unicodedata.combining(character)
+    )
+    return re.sub(r"[^a-z0-9]+", " ", without_accents.casefold()).strip()
+
+
+def canonical_genre(value: str) -> str | None:
+    genre = re.sub(r"\s+", " ", value.strip().casefold())
+    if not genre:
+        return None
+    if genre in GENRE_ALIASES:
+        return GENRE_ALIASES[genre]
+    if not any(keyword in genre for keyword in GENRE_KEYWORDS):
+        return None
+    return genre
+
+
+def cached_artist_genres(artist_name: str) -> list[str] | None:
+    artist_key = normalize_artist_key(artist_name)
+    if redis_client is not None:
+        value = redis_client.get(f"frecuencia:genres:{artist_key}")
+        return json.loads(value) if value is not None else None
+
+    now = int(time.time())
+    with open_database() as connection:
+        row = connection.execute(
+            "SELECT genres FROM artist_genres WHERE artist_key = ? AND expires_at > ?",
+            (artist_key, now),
+        ).fetchone()
+    return json.loads(row[0]) if row else None
+
+
+def cache_artist_genres(artist_name: str, genres: list[str]) -> None:
+    artist_key = normalize_artist_key(artist_name)
+    serialized = json.dumps(genres, ensure_ascii=False)
+    if redis_client is not None:
+        redis_client.setex(
+            f"frecuencia:genres:{artist_key}",
+            GENRE_CACHE_TTL_SECONDS,
+            serialized,
+        )
+        return
+
+    with open_database() as connection:
+        connection.execute(
+            """
+            INSERT INTO artist_genres(artist_key, genres, expires_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(artist_key) DO UPDATE SET
+                genres = excluded.genres,
+                expires_at = excluded.expires_at
+            """,
+            (
+                artist_key,
+                serialized,
+                int(time.time()) + GENRE_CACHE_TTL_SECONDS,
+            ),
+        )
+
+
+def musicbrainz_genres(artist_names: list[str]) -> dict[str, list[str]]:
+    if not artist_names:
+        return {}
+    clauses = []
+    for name in artist_names[:24]:
+        escaped = name.replace("\\", "\\\\").replace('"', '\\"')
+        clauses.append(f'artist:"{escaped}"')
+    query = " OR ".join(clauses)
+    url = f"{MUSICBRAINZ_API}?{urlencode({'query': query, 'fmt': 'json', 'limit': 100})}"
+    request = URLRequest(url, headers={"User-Agent": MUSICBRAINZ_USER_AGENT})
+    try:
+        with urlopen(request, timeout=8) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError):
+        return {}
+
+    candidates: dict[str, list[dict[str, Any]]] = {}
+    queried_names = artist_names[:24]
+    requested_keys = {normalize_artist_key(name) for name in queried_names}
+    for artist in payload.get("artists") or []:
+        key = normalize_artist_key(str(artist.get("name") or ""))
+        if key in requested_keys:
+            candidates.setdefault(key, []).append(artist)
+
+    results: dict[str, list[str]] = {}
+    for name in queried_names:
+        key = normalize_artist_key(name)
+        matches = candidates.get(key) or []
+        if not matches:
+            results[key] = []
+            continue
+        best = max(
+            matches,
+            key=lambda item: (
+                sum(max(0, int(tag.get("count") or 0)) for tag in item.get("tags") or []),
+                int(item.get("score") or 0),
+            ),
+        )
+        raw_tags = [*(best.get("genres") or []), *(best.get("tags") or [])]
+        raw_tags.sort(key=lambda tag: int(tag.get("count") or 0), reverse=True)
+        verified = []
+        for tag in raw_tags:
+            genre = canonical_genre(str(tag.get("name") or ""))
+            if genre and genre.casefold() not in {item.casefold() for item in verified}:
+                verified.append(genre)
+            if len(verified) == 4:
+                break
+        results[key] = verified
+    return results
+
+
+def enrich_artist_genres(
+    artists_by_range: dict[str, list[dict[str, Any]]]
+) -> None:
+    candidates: dict[str, str] = {}
+    for artists in artists_by_range.values():
+        for artist in artists[:15]:
+            name = str(artist.get("name") or "").strip()
+            if name and not artist.get("genres"):
+                candidates.setdefault(normalize_artist_key(name), name)
+
+    unresolved = []
+    genre_map: dict[str, list[str]] = {}
+    for key, name in candidates.items():
+        cached = cached_artist_genres(name)
+        if cached is None:
+            unresolved.append(name)
+        else:
+            genre_map[key] = cached
+
+    queried_names = unresolved[:24]
+    discovered = musicbrainz_genres(queried_names)
+    for name in queried_names:
+        genres = discovered.get(normalize_artist_key(name), [])
+        genre_map[normalize_artist_key(name)] = genres
+        cache_artist_genres(name, genres)
+
+    for artists in artists_by_range.values():
+        for artist in artists:
+            if artist.get("genres"):
+                artist["_genre_source"] = "Spotify"
+                continue
+            genres = genre_map.get(normalize_artist_key(str(artist.get("name") or "")), [])
+            artist["genres"] = genres
+            if genres:
+                artist["_genre_source"] = "MusicBrainz"
+
+
 def image_url(item: dict[str, Any]) -> str | None:
     images = item.get("images") or []
     return images[0].get("url") if images else None
@@ -311,99 +555,89 @@ def image_url(item: dict[str, Any]) -> str | None:
 
 def artist_genre(artist: dict[str, Any]) -> str:
     genres = artist.get("genres") or []
-    return genres[0] if genres else "sin género principal"
+    return genres[0] if genres else "género no verificado"
 
 
 def rank_movement(
     current_id: str, baseline_positions: dict[str, int], current_index: int
-) -> int:
+) -> int | None:
     baseline_index = baseline_positions.get(current_id)
     if baseline_index is None:
-        return min(8, max(1, 8 - current_index))
+        return None
     return baseline_index - current_index
 
 
-def weighted_genres(artists: list[dict[str, Any]]) -> list[list[Any]]:
-    genre_scores: Counter[str] = Counter()
-    for index, artist in enumerate(artists):
-        weight = max(1, len(artists) - index)
-        for genre in artist.get("genres") or []:
-            genre_scores[genre] += weight
-    top = genre_scores.most_common(10)
-    if not top:
-        return [["sin categoría", 8]]
-    highest = top[0][1]
-    return [[genre, round(5 + score / highest * 17)] for genre, score in top]
+def genre_profile(genres: list[dict[str, Any]]) -> str:
+    if not genres:
+        return "Géneros por verificar"
+    if len(genres) == 1:
+        return genres[0]["name"]
+    return f"{genres[0]['name']} × {genres[1]['name']}"
 
 
-def diversity_score(
-    artists: list[dict[str, Any]], tracks: list[dict[str, Any]]
-) -> int:
-    track_artist_ids = {
-        artist.get("id")
-        for track in tracks
-        for artist in track.get("artists") or []
-        if artist.get("id")
-    }
-    unique_genres = {
-        genre for artist in artists for genre in artist.get("genres") or []
-    }
-    artist_component = len(track_artist_ids) / max(len(tracks), 1)
-    genre_component = min(len(unique_genres), 24) / 24
-    return min(99, round(artist_component * 72 + genre_component * 28))
+def insight_cards(
+    comparison: dict[str, Any],
+    genres: list[dict[str, Any]],
+    tracks: list[dict[str, Any]],
+    genre_sample_size: int,
+) -> list[dict[str, Any]]:
+    entered = comparison["entered"]
+    exited = comparison["exited"]
+    discovery_facts = [
+        "Entraron: " + (", ".join(entered) if entered else "ninguno"),
+        "Salieron: " + (", ".join(exited) if exited else "ninguno"),
+        f"Se repiten {comparison['sharedCount']} de {comparison['sampleSize']} artistas.",
+    ]
 
+    if genres:
+        top_genre = genres[0]
+        related = ", ".join(top_genre["artists"]) or "sin nombres verificados"
+        next_genres = ", ".join(item["name"] for item in genres[1:4]) or "ninguno"
+        pattern_title = f"{top_genre['name']} tiene mayor presencia"
+        pattern_copy = (
+            f"Aparece en {top_genre['artistCount']} de los primeros {genre_sample_size} artistas "
+            "del ranking de afinidad."
+        )
+        pattern_facts = [
+            f"Artistas asociados: {related}.",
+            f"También aparecen: {next_genres}.",
+            "Los géneros describen artistas; no son minutos ni reproducciones.",
+        ]
+    else:
+        pattern_title = "Todavía no hay géneros verificados"
+        pattern_copy = (
+            "Spotify no entregó categorías y MusicBrainz no pudo completar "
+            "esta selección."
+        )
+        pattern_facts = [
+            "No mostramos etiquetas de relleno.",
+            "Probá Actualizar más tarde para volver a consultar la fuente externa.",
+        ]
 
-def taste_change(current_ids: list[str], baseline_ids: list[str]) -> int:
-    current = set(current_ids[:20])
-    baseline = set(baseline_ids[:20])
-    union = current | baseline
-    if not union:
-        return 0
-    return round((1 - len(current & baseline) / len(union)) * 100)
-
-
-def profile_name(diversity: int, genres: list[list[Any]]) -> str:
-    names = " ".join(genre[0] for genre in genres[:4]).lower()
-    if diversity >= 80:
-        return "Curioso y expansivo"
-    if "elect" in names or "dance" in names:
-        return "Nocturno y cinético"
-    if "r&b" in names or "soul" in names:
-        return "Íntimo y magnético"
-    if "rock" in names or "indie" in names:
-        return "Inquieto y melódico"
-    return "Ecléctico y emocional"
-
-
-def insight_copy(
-    diversity: int, change: int, genres: list[list[Any]], new_artist_count: int
-) -> list[list[str]]:
-    top_genre = genres[0][0] if genres else "tu sonido principal"
-    second_genre = genres[1][0] if len(genres) > 1 else "otros territorios"
-    discovery_title = (
-        "Más curioso que de costumbre"
-        if new_artist_count >= 5
-        else "Tu núcleo sigue firme"
-    )
-    discovery_copy = (
-        f"{new_artist_count} artistas aparecen con más fuerza que en el período anterior."
-        if new_artist_count
-        else "Tus artistas principales se mantienen estables en el tiempo."
-    )
-    pattern_title = (
-        "Tu escucha cruza escenas" if diversity >= 70 else "Afinidad concentrada"
-    )
-    pattern_copy = f"{top_genre.capitalize()} convive con {second_genre} dentro de tu selección principal."
-    signature_title = (
-        "Identidad en movimiento" if change >= 25 else "Una firma reconocible"
-    )
-    signature_copy = (
-        f"Un {change}% de tu núcleo cambia al compararlo con un período más amplio."
-    )
+    signature_facts = [
+        f"Década con más canciones: {favorite_decade(tracks)}.",
+        f"Duración media: {average_track_duration(tracks)}.",
+        f"Contenido explícito: {explicit_share(tracks)}% del Top {len(tracks)}.",
+    ]
     return [
-        [discovery_title, discovery_copy],
-        [pattern_title, pattern_copy],
-        [signature_title, signature_copy],
+        {
+            "title": (
+                f"{comparison['enteredCount']} entradas en el Top "
+                f"{comparison['sampleSize']}"
+            ),
+            "copy": f"Comparado con {comparison['label'].lower()}.",
+            "facts": discovery_facts,
+        },
+        {
+            "title": pattern_title,
+            "copy": pattern_copy,
+            "facts": pattern_facts,
+        },
+        {
+            "title": "Tu selección, sin adjetivos inventados",
+            "copy": "Tres medidas observables dentro de las canciones que Spotify devolvió.",
+            "facts": signature_facts,
+        },
     ]
 
 
@@ -417,6 +651,7 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
         tracks_by_range[time_range] = sp.current_user_top_tracks(
             limit=50, time_range=time_range
         ).get("items", [])
+    enrich_artist_genres(artists_by_range)
 
     payloads: dict[str, dict[str, Any]] = {}
     comparison_ranges = {
@@ -433,13 +668,22 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
             for index, artist in enumerate(baseline_artists)
             if artist.get("id")
         }
-        current_ids = [artist.get("id", "") for artist in artists]
-        baseline_ids = [artist.get("id", "") for artist in baseline_artists]
-        genres = weighted_genres(artists)
-        diversity = diversity_score(artists, tracks)
-        change = taste_change(current_ids, baseline_ids)
-        new_artist_count = len(set(current_ids[:20]) - set(baseline_ids[:20]))
         label, description = RANGE_COPY[selected_range]
+        comparison = ranking_comparison(artists, baseline_artists)
+        comparison["label"] = RANGE_COPY[comparison_range][0]
+        genres = genre_breakdown(artists)
+        data_science = ranked_track_statistics(
+            tracks,
+            genres,
+            current_year=time.gmtime().tm_year,
+        )
+        genre_sample_size = min(20, len(artists))
+        genre_sources = {
+            artist.get("_genre_source")
+            for artist in artists[:genre_sample_size]
+            if artist.get("_genre_source")
+        }
+        genre_source = " + ".join(sorted(genre_sources)) or "Sin fuente disponible"
 
         artist_payload = []
         for index, artist in enumerate(artists[:50]):
@@ -448,6 +692,7 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
                     "name": artist.get("name", "Artista"),
                     "genre": artist_genre(artist),
                     "genres": (artist.get("genres") or [])[:3],
+                    "genreSource": artist.get("_genre_source"),
                     "movement": rank_movement(
                         artist.get("id", ""), baseline_positions, index
                     ),
@@ -488,38 +733,47 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
             )
 
         unique_genres = {
-            genre for artist in artists for genre in artist.get("genres") or []
+            genre.casefold()
+            for artist in artists[:genre_sample_size]
+            for genre in artist.get("genres") or []
         }
-        top_genre = genres[0][0] if genres else "tu género principal"
-        change_note = (
-            f"Tu núcleo cambió un {change}% frente a "
-            f"{RANGE_COPY[comparison_range][0].lower()}. "
-            f"Hay {new_artist_count} artistas que ganaron protagonismo."
-        )
-        genre_insight = (
-            f"{top_genre.capitalize()} es el hilo que más conecta a tus artistas "
-            "favoritos."
-        )
+        if genres:
+            top_genre = genres[0]
+            genre_insight = (
+                f"{top_genre['name']} aparece en {top_genre['artistCount']} de "
+                f"{genre_sample_size} artistas analizados. Fuente: {genre_source}."
+            )
+        else:
+            genre_insight = (
+                "No encontramos géneros verificables en Spotify ni MusicBrainz. "
+                "No se muestran categorías de relleno."
+            )
 
         payloads[selected_range] = {
             "range": selected_range,
             "label": label,
             "description": description,
-            "profile": profile_name(diversity, genres),
-            "diversity": diversity,
-            "change": change,
-            "changeNote": change_note,
+            "profile": genre_profile(genres),
+            "comparison": comparison,
             "analyzedTracks": len(tracks),
             "analyzedArtists": len(artists),
             "era": favorite_decade(tracks),
             "averageDuration": average_track_duration(tracks),
             "explicitShare": explicit_share(tracks),
             "genreCount": len(unique_genres),
+            "genreSampleSize": genre_sample_size,
+            "genreSource": genre_source,
             "genreInsight": genre_insight,
             "genres": genres,
+            "dataScience": data_science,
             "artists": artist_payload,
             "tracks": track_payload,
-            "insights": insight_copy(diversity, change, genres, new_artist_count),
+            "insights": insight_cards(
+                comparison,
+                genres,
+                tracks,
+                genre_sample_size,
+            ),
         }
 
     return payloads
@@ -528,7 +782,7 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
 app = FastAPI(
     title="Frecuencia API",
     description="Backend de Tu ADN musical, construido con Spotipy.",
-    version="0.4.0",
+    version="0.5.0",
     docs_url=None if IS_PRODUCTION else "/api/docs",
     redoc_url=None,
 )

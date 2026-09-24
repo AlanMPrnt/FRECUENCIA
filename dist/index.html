@@ -66,7 +66,7 @@
         <article class="card dna-card">
           <div class="card-heading">
             <div>
-              <p class="card-kicker">Huella sonora</p>
+              <p class="card-kicker">Mapa de géneros</p>
               <h2 id="profile-name">Nocturno e inquieto</h2>
             </div>
             <span class="period-label" id="period-label">Ahora</span>
@@ -81,23 +81,23 @@
             <div class="genre-node node-c" id="node-c"><span>urbano</span></div>
             <div class="genre-node node-d" id="node-d"><span>electrónica</span></div>
             <div class="dna-core">
-              <span class="core-label">Variedad</span>
-              <strong id="diversity-score">78</strong>
-              <span class="core-unit">/ 100</span>
+              <span class="core-label">Género #1</span>
+              <strong id="primary-genre">alt pop</strong>
+              <span id="primary-genre-proof" class="core-unit">5 de 20 artistas</span>
             </div>
           </div>
 
           <div class="dna-legend">
-            <span><i class="dot dot-lime"></i> Exploración</span>
-            <span><i class="dot dot-violet"></i> Afinidad</span>
-            <span><i class="dot dot-orange"></i> Recurrencia</span>
+            <span><i class="dot dot-lime"></i> Tamaño = presencia</span>
+            <span><i class="dot dot-violet"></i> Muestra: Top 20</span>
+            <span id="genre-source-label"><i class="dot dot-orange"></i> Spotify + MusicBrainz</span>
           </div>
         </article>
 
         <article class="card lead-artist-card">
           <div class="card-heading compact">
             <div>
-              <p class="card-kicker">Tu artista #1</p>
+              <p class="card-kicker">#1 según Spotify</p>
               <h2 id="lead-artist-name">Tame Impala</h2>
             </div>
             <span id="lead-artist-rank" class="rank-change up">↗ 3</span>
@@ -116,25 +116,21 @@
         <article class="card pulse-card">
           <div class="card-heading compact">
             <div>
-              <p class="card-kicker">Cambio de gusto</p>
-              <h2><span id="change-score">23</span>%</h2>
+              <p class="card-kicker">Comparación transparente</p>
+              <h2 id="comparison-title">Cambios del Top 20</h2>
             </div>
-            <span class="pulse-badge">en movimiento</span>
+            <span id="comparison-label" class="pulse-badge">vs 6 meses</span>
           </div>
-          <div class="pulse-chart" aria-hidden="true">
-            <svg viewBox="0 0 360 150" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#d9ff43" stop-opacity=".38"/>
-                  <stop offset="100%" stop-color="#d9ff43" stop-opacity="0"/>
-                </linearGradient>
-              </defs>
-              <path class="pulse-area" d="M0,125 C35,120 43,102 78,108 C115,114 123,68 162,78 C199,88 205,43 245,57 C286,71 306,20 360,24 L360,150 L0,150 Z"/>
-              <path class="pulse-line" d="M0,125 C35,120 43,102 78,108 C115,114 123,68 162,78 C199,88 205,43 245,57 C286,71 306,20 360,24"/>
-              <circle cx="360" cy="24" r="5"/>
-            </svg>
+          <div class="comparison-grid" aria-label="Comparación de artistas del Top 20">
+            <div><span>Se repiten</span><strong id="comparison-shared">13</strong></div>
+            <div><span>Entraron</span><strong id="comparison-entered">7</strong></div>
+            <div><span>Salieron</span><strong id="comparison-exited">7</strong></div>
           </div>
-          <p id="change-note" class="pulse-copy">Tu rotación cambió más que el mes pasado. Hay 7 artistas nuevos en tu top.</p>
+          <div class="comparison-detail">
+            <span>Entraron al ranking</span>
+            <p id="comparison-entered-names">Dillom, Bad Bunny y Phoebe Bridgers.</p>
+          </div>
+          <p class="pulse-copy">Comparamos miembros del Top 20. No representa un porcentaje de escuchas.</p>
         </article>
       </section>
 
@@ -163,6 +159,52 @@
           <p class="metric-value"><strong id="metric-explicit">28</strong><small>%</small></p>
           <p>Proporción dentro de tus temas favoritos.</p>
         </article>
+      </section>
+
+      <section class="card science-lab" aria-labelledby="science-title">
+        <div class="science-heading">
+          <div>
+            <p class="card-kicker">Laboratorio de datos</p>
+            <h2 id="science-title">Lo que realmente se puede medir</h2>
+          </div>
+          <p id="science-sample">Muestra: Top 50 de afinidad · Spotify</p>
+        </div>
+        <div class="science-grid">
+          <article>
+            <span>Diversidad efectiva</span>
+            <strong id="science-effective-genres">—</strong>
+            <p>Géneros equivalentes con el mismo peso.</p>
+          </article>
+          <article>
+            <span>Año central</span>
+            <strong id="science-median-year">—</strong>
+            <p id="science-year-band">Mitad central sin datos.</p>
+          </article>
+          <article>
+            <span>Colaboraciones</span>
+            <strong id="science-collabs">—</strong>
+            <p id="science-collabs-copy">Canciones con más de un artista.</p>
+          </article>
+          <article>
+            <span>Artistas en canciones</span>
+            <strong id="science-track-artists">—</strong>
+            <p>Artistas únicos acreditados en el Top 50.</p>
+          </article>
+          <article>
+            <span>Álbumes distintos</span>
+            <strong id="science-albums">—</strong>
+            <p id="science-album-copy">Concentración del álbum más presente.</p>
+          </article>
+          <article>
+            <span>Amplitud temporal</span>
+            <strong id="science-year-span">—</strong>
+            <p id="science-age-copy">Desde el lanzamiento más antiguo al más nuevo.</p>
+          </article>
+        </div>
+        <details class="science-method">
+          <summary>Cómo calculamos estas estadísticas</summary>
+          <p>Son estadísticas descriptivas sobre los elementos que Spotify devuelve, no sobre todo tu historial. “Diversidad efectiva” usa entropía de Shannon: un valor de 5 equivale a una mezcla tan repartida como cinco géneros con el mismo peso.</p>
+        </details>
       </section>
 
       <section id="historial-completo" class="card history-lab" aria-labelledby="history-title">
@@ -252,10 +294,11 @@
           <div class="section-heading">
             <div>
               <p class="card-kicker">Afinidad</p>
-              <h2>Artistas que te definen</h2>
+              <h2>Artistas según Spotify</h2>
             </div>
             <button id="artist-toggle" class="list-toggle" type="button" aria-expanded="false">Ver Top 50</button>
           </div>
+          <p id="artist-basis" class="data-explainer"><strong>Qué significa:</strong> Spotify calcula este orden por afinidad para el período elegido. No son reproducciones ni “últimos escuchados”.</p>
           <ol id="artist-list" class="artist-list"></ol>
         </article>
 
@@ -269,16 +312,18 @@
           </div>
           <div id="genre-cloud" class="genre-cloud" aria-label="Géneros más frecuentes"></div>
           <p id="genre-insight" class="genre-insight"><span>01</span> El pop alternativo conecta casi la mitad de tus artistas favoritos.</p>
+          <div id="genre-breakdown" class="genre-breakdown" aria-label="Detalle de géneros por artista"></div>
         </article>
 
         <article class="card tracks-card">
           <div class="section-heading">
             <div>
               <p class="card-kicker">En repetición</p>
-              <h2>Canciones esenciales</h2>
+              <h2>Canciones según Spotify</h2>
             </div>
             <button id="track-toggle" class="list-toggle" type="button" aria-expanded="false">Ver Top 50</button>
           </div>
+          <p class="data-explainer"><strong>Qué significa:</strong> ranking de afinidad de Spotify para el período elegido; no indica cuántas veces sonaron.</p>
           <ol id="track-list" class="track-list"></ol>
         </article>
       </section>
@@ -289,25 +334,28 @@
           <p class="card-kicker">Descubrimiento</p>
           <h3 id="discovery-title">Más curioso que de costumbre</h3>
           <p id="discovery-copy">Tres de cada diez artistas entraron a tu radar este mes.</p>
+          <ul id="discovery-facts" class="insight-facts"></ul>
         </article>
         <article>
           <span class="insight-number">02</span>
           <p class="card-kicker">Patrón</p>
           <h3 id="pattern-title">Tu escucha cruza escenas</h3>
           <p id="pattern-copy">Saltás del indie psicodélico al urbano sin perder el hilo.</p>
+          <ul id="pattern-facts" class="insight-facts"></ul>
         </article>
         <article>
           <span class="insight-number">03</span>
           <p class="card-kicker">Firma</p>
           <h3 id="signature-title">Melancolía bailable</h3>
           <p id="signature-copy">Tu selección combina introspección, pulso y texturas nocturnas.</p>
+          <ul id="signature-facts" class="insight-facts"></ul>
         </article>
       </section>
     </main>
 
     <footer class="footer">
       <p>Frecuencia solicita acceso de lectura; nunca publica ni modifica tu cuenta.</p>
-      <p>Datos musicales provistos por Spotify.</p>
+      <p>Datos musicales provistos por Spotify · géneros complementarios de MusicBrainz.</p>
     </footer>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
