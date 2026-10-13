@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#historial-completo">Ir al historial</a>
     <div class="ambient ambient-a" aria-hidden="true"></div>
     <div class="ambient ambient-b" aria-hidden="true"></div>
 
@@ -66,6 +67,8 @@
         </div>
       </section>
 
+      <nav class="section-nav" aria-label="Secciones"><a href="#inicio">Resumen</a><a href="#historial-completo">Mi historial</a><a href="#artistas">Artistas y géneros</a></nav>
+      <div id="data-notice" class="data-notice" role="status" hidden><p id="data-notice-copy"></p><button id="data-retry" class="utility-button" type="button">Reintentar</button></div>
       <section class="hero-grid" aria-label="Resumen de tu ADN musical">
         <article class="card dna-card">
           <div class="card-heading">
@@ -134,7 +137,7 @@
             <span>Entraron al ranking</span>
             <p id="comparison-entered-names">Dillom, Bad Bunny y Phoebe Bridgers.</p>
           </div>
-          <p class="pulse-copy">Comparamos miembros del Top 20. No representa un porcentaje de escuchas.</p>
+          <p class="pulse-copy">Comparamos dos períodos que se superponen, no dos momentos consecutivos. Las entradas son diferencias entre listas; no necesariamente artistas nuevos para vos.</p>
         </article>
       </section>
 
@@ -143,7 +146,7 @@
           <span class="metric-index">01</span>
           <p class="card-kicker">Canciones analizadas</p>
           <p class="metric-value"><strong id="metric-track-count">50</strong></p>
-          <p>Spotify entrega hasta 50 favoritas por período.</p>
+          <p>Analizamos las primeras 50 favoritas de este período.</p>
         </article>
         <article class="metric-card">
           <span class="metric-index">02</span>
@@ -217,7 +220,7 @@
           <div>
             <p class="card-kicker">Toda tu historia</p>
             <h2 id="history-title">Tu Top 1000 con reproducciones reales</h2>
-            <p>La API de Spotify ordena afinidad, pero no revela cuántas veces escuchaste cada canción. Importá tu historial oficial y Frecuencia hará el cálculo exacto.</p>
+            <p>Explorá tus escuchas, horarios y etapas musicales. Importá el ZIP oficial de Spotify: calculamos el ranking a partir de los registros que contiene, sin subirlos a un servidor.</p>
           </div>
           <span class="privacy-badge">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Zm-3-10 2 2 4-5"/></svg>
@@ -226,21 +229,23 @@
         </header>
 
         <div id="history-upload" class="history-upload">
-          <input id="history-files" type="file" accept=".json,application/json" multiple hidden />
+          <input id="history-files" type="file" accept=".zip,.json,application/zip,application/json" multiple hidden />
           <div class="upload-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0L7 9m5-5 5 5M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>
           </div>
           <div>
-            <h3>Arrastrá tus JSON acá</h3>
-            <p>O elegí todos los archivos <strong>Streaming_History_Audio_*.json</strong> del ZIP de Spotify.</p>
+            <h3>Tu historia empieza con un ZIP</h3>
+            <p>Arrastrá el ZIP de Spotify sin descomprimir, o elegí tus JSON de historial. Cada importación reemplaza la anterior.</p>
           </div>
-          <label class="history-file-button" for="history-files">Seleccionar archivos</label>
+          <button id="history-select" class="history-file-button" type="button">Elegir ZIP o JSON</button>
           <a class="history-help" href="https://www.spotify.com/account/privacy/" target="_blank" rel="noreferrer">1. Pedir historial ampliado ↗</a>
         </div>
+        <div class="history-preferences"><label><input id="history-remember" type="checkbox" /> Recordar mi historial en este navegador</label><span>Opcional. En un dispositivo compartido, dejalo desmarcado.</span></div>
+        <p id="history-status" class="data-explainer" role="status" aria-live="polite">Análisis local. No guardamos IP, nombre de usuario ni agente de navegador del archivo.</p>
         <ol class="history-steps" aria-label="Cómo importar el historial de Spotify">
           <li><strong>Pedilo</strong><span>Abrí Privacidad de Spotify y solicitá el historial ampliado.</span></li>
           <li><strong>Esperá el email</strong><span>Spotify prepara el ZIP y te avisa cuando esté disponible.</span></li>
-          <li><strong>Importalo</strong><span>Descomprimí el ZIP y elegí todos los JSON de audio.</span></li>
+          <li><strong>Importalo</strong><span>Arrastrá el ZIP acá. Detectamos los archivos de audio y quitamos duplicados.</span></li>
         </ol>
 
         <div id="history-results" class="history-results" hidden>
@@ -265,8 +270,14 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"/></svg>
               <input id="history-search" type="search" placeholder="Buscar canción, artista o álbum" autocomplete="off" />
             </label>
+            <label class="history-sort">Ordenar por <select id="history-sort"><option value="plays">Reproducciones</option><option value="time">Tiempo escuchado</option></select></label>
             <button id="history-clear" class="history-clear" type="button">Quitar historial</button>
           </div>
+          <p id="history-coverage" class="data-explainer"></p>
+          <details class="science-method"><summary>Qué cuenta como escucha y qué significa cada dato</summary><p>Contamos una reproducción cuando el registro tiene al menos 30 segundos escuchados: es un criterio de Frecuencia. El tiempo total incluye también escuchas cortas. El ranking suma el tiempo de las reproducciones que cumplen el criterio. Un registro no prueba que hayas terminado la canción. Las tasas de salto, shuffle y offline usan sólo registros que incluyen ese campo. Los horarios, años y rachas se muestran en UTC, según la fecha de finalización registrada. Los filtros terminan en la última fecha del archivo. No representan datos en vivo.</p></details>
+          <div class="science-heading history-habits-heading"><div><p class="card-kicker">Tus hábitos, con evidencia</p><h3>Cómo escuchás</h3></div><span>Calculado desde tu archivo</span></div>
+          <div id="history-habits" class="science-grid history-habits"></div>
+          <div class="history-hours-panel"><h3>Tu día en música</h3><p class="data-explainer">Reproducciones por hora de finalización · UTC</p><div id="history-hours" class="history-hours" aria-label="Reproducciones por hora UTC"></div><p id="history-platforms" class="data-explainer"></p></div>
 
           <div class="history-insights">
             <article class="history-years-panel">
@@ -320,6 +331,7 @@
             <span id="genre-count" class="section-meta">14 géneros</span>
           </div>
           <div id="genre-cloud" class="genre-cloud" aria-label="Géneros más frecuentes"></div>
+          <p id="genre-coverage" class="data-explainer"></p>
           <p id="genre-insight" class="genre-insight"><span>01</span> El pop alternativo conecta casi la mitad de tus artistas favoritos.</p>
           <div id="genre-breakdown" class="genre-breakdown" aria-label="Detalle de géneros por artista"></div>
         </article>

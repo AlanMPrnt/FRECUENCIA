@@ -136,8 +136,9 @@ const demoData = {
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const validRanges = ["short_term", "medium_term", "long_term"];
-let currentRange = validRanges.includes(localStorage.getItem("frecuencia_range"))
-  ? localStorage.getItem("frecuencia_range")
+function savedRange() { try { return localStorage.getItem("frecuencia_range"); } catch { return null; } }
+let currentRange = validRanges.includes(savedRange())
+  ? savedRange()
   : "short_term";
 let apiAvailable = false;
 let spotifyConfigured = false;
@@ -145,10 +146,45 @@ let authenticated = false;
 let currentData = null;
 let showAllArtists = false;
 let showAllTracks = false;
-let historyEntries = [];
+let historyCount = 0;
+let historyAnalysis = null;
+let historyRequestVersion = 0;
+let historyImporting = false;
+let dataIsLive = false;
+let liveError = false;
+let liveRequestId = 0;
+let liveController;
+let historySort = "plays";
 let historyRange = "all";
 let historyLimit = 100;
 let historyQuery = "";
+
+let historyWorker;
+let workerSequence = 0;
+const workerRequests = new Map();
+function historyTask(action, extra = {}) {
+  return new Promise((resolve, reject) => {
+    if (!historyWorker) {
+      try { historyWorker = new Worker("/history-worker.js"); }
+      catch { reject(new Error("Tu navegador no permite analizar el historial. Probá con una versión actual de Chrome, Firefox o Safari.")); return; }
+      historyWorker.onmessage = ({ data }) => {
+        if (data.progress) { $("#history-status").textContent = data.progress; return; }
+        const pending = workerRequests.get(data.id);
+        if (!pending) return;
+        workerRequests.delete(data.id);
+        data.error ? pending.reject(new Error(data.error)) : pending.resolve(data);
+      };
+      historyWorker.onerror = () => {
+        for (const pending of workerRequests.values()) pending.reject(new Error("El análisis se interrumpió. Probá con menos archivos."));
+        workerRequests.clear();
+        historyWorker.terminate(); historyWorker = null;
+      };
+    }
+    const id = ++workerSequence;
+    workerRequests.set(id, { resolve, reject });
+    historyWorker.postMessage({ id, action, ...extra });
+  });
+}
 
 function initials(name) {
   return name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
@@ -190,7 +226,8 @@ function normalizedGenres(data) {
   }).filter((genre) => genre?.name);
 }
 
-function render(data) {
+function render(data, live = dataIsLive) {
+  dataIsLive = live;
   currentData = data;
   $("#period-copy").textContent = data.description;
   $("#period-label").textContent = data.label;
@@ -205,19 +242,22 @@ function render(data) {
   $("#primary-genre-proof").textContent = topGenre ? `${topGenre.artistCount} de ${data.genreSampleSize || 20} artistas` : "sin etiquetas de relleno";
   $("#genre-source-label").innerHTML = `<i class="dot dot-orange"></i> ${escapeHtml(data.genreSource || "Spotify")}`;
   $("#genre-count").textContent = genres.length ? `${data.genreCount || genres.length} géneros` : "sin datos verificados";
+  $("#genre-coverage").textContent = live
+    ? `Cobertura: ${data.genreCoveredArtists ?? 0} de ${data.genreSampleSize ?? 0} artistas con género. Las etiquetas de MusicBrainz son comunitarias y la coincidencia se realiza por nombre; pueden ser incompletas.`
+    : "Datos ilustrativos para explorar el diseño. Conectá Spotify para ver la cobertura de tu cuenta.";
   $("#genre-insight").innerHTML = `<span>01</span> ${escapeHtml(data.genreInsight)}`;
 
   const artists = Array.isArray(data.artists) ? data.artists : [];
   const tracks = Array.isArray(data.tracks) ? data.tracks : [];
-  const comparison = data.comparison || {
+  const comparison = data.comparison || (live ? { label: "Sin comparación", sampleSize: 0, sharedCount: 0, enteredCount: 0, exitedCount: 0, entered: [] } : {
     label: currentRange === "short_term" ? "Últimos 6 meses" : "Último año",
     sampleSize: 20,
     sharedCount: 13,
     enteredCount: 7,
     exitedCount: 7,
     entered: artists.slice(0, 4).map((artist) => artist.name)
-  };
-  $("#comparison-title").textContent = `Cambios del Top ${comparison.sampleSize || 20}`;
+  });
+  $("#comparison-title").textContent = `Diferencias del Top ${comparison.sampleSize ?? 20}`;
   $("#comparison-label").textContent = `vs ${comparison.label.toLocaleLowerCase("es")}`;
   $("#comparison-shared").textContent = comparison.sharedCount;
   $("#comparison-entered").textContent = comparison.enteredCount;
@@ -225,7 +265,7 @@ function render(data) {
   $("#comparison-entered-names").textContent = comparison.entered?.length
     ? `${comparison.entered.join(", ")}.`
     : "No hubo entradas nuevas en este Top 20.";
-  const science = data.dataScience || {
+  const science = data.dataScience || (live ? {} : {
     sampleSize: 50,
     effectiveGenreCount: currentRange === "short_term" ? 6.8 : currentRange === "medium_term" ? 7.4 : 8.1,
     medianReleaseYear: currentRange === "short_term" ? 2023 : 2020,
@@ -240,8 +280,8 @@ function render(data) {
     oldestReleaseYear: 1983,
     newestReleaseYear: 2025,
     medianReleaseAge: currentRange === "short_term" ? 2 : 5
-  };
-  $("#science-sample").textContent = `Muestra: Top ${science.sampleSize || tracks.length} de afinidad · Spotify`;
+  });
+  $("#science-sample").textContent = `Muestra: Top ${science.sampleSize ?? tracks.length} de afinidad · ${live ? "Spotify" : "Ejemplo"}`;
   $("#science-effective-genres").textContent = Number.isFinite(science.effectiveGenreCount) ? `${science.effectiveGenreCount}` : "—";
   $("#science-median-year").textContent = science.medianReleaseYear || "—";
   $("#science-year-band").textContent = science.releaseYearQ1 && science.releaseYearQ3
@@ -272,11 +312,14 @@ function render(data) {
   $("#lead-artist-rank").textContent = lead.movement === null || lead.movement === undefined ? "nuevo" : lead.movement > 0 ? `↗ ${lead.movement}` : lead.movement < 0 ? `↘ ${Math.abs(lead.movement)}` : "—";
   $("#lead-artist-rank").className = `rank-change ${lead.movement < 0 ? "down" : lead.movement == null ? "new" : "up"}`;
   $("#lead-artist-note").textContent = lead.note || (lead.movement == null
-    ? `Spotify lo ubica primero en ${data.label.toLocaleLowerCase("es")}; no estaba en el Top 20 de comparación.`
+    ? `Spotify lo ubica primero en ${data.label.toLocaleLowerCase("es")}; no aparece en el ranking de comparación.`
     : lead.movement > 0
       ? `Subió ${lead.movement} lugares frente a ${comparison.label.toLocaleLowerCase("es")}.`
       : `Spotify lo ubica primero por afinidad en ${data.label.toLocaleLowerCase("es")}.`);
+  if (!artists.length) $("#lead-artist-note").textContent = "Spotify no devolvió artistas para este período.";
   const leadImage = lead.image ? safeUrl(lead.image) : null;
+  $("#lead-artist-link").classList.toggle("has-image", Boolean(leadImage && leadImage !== "#"));
+  $("#lead-artist-initials").hidden = Boolean(leadImage && leadImage !== "#");
   $("#lead-artist-link").style.background = leadImage && leadImage !== "#" ? `linear-gradient(rgba(15,15,18,.12), rgba(15,15,18,.42)), url('${leadImage}') center/cover` : `linear-gradient(145deg, ${lead.color || "#9e73ff"}, #2b184b 52%, #ff7547)`;
   $("#lead-artist-link").href = lead.url ? safeUrl(lead.url) : "#artistas";
 
@@ -330,7 +373,7 @@ function render(data) {
 
   const insightIds = [["discovery-title", "discovery-copy", "discovery-facts"], ["pattern-title", "pattern-copy", "pattern-facts"], ["signature-title", "signature-copy", "signature-facts"]];
   insightIds.forEach(([titleId, copyId, factsId], index) => {
-    const rawInsight = data.insights[index];
+    const rawInsight = data.insights?.[index];
     const insight = Array.isArray(rawInsight)
       ? { title: rawInsight[0], copy: rawInsight[1], facts: ["Detalle disponible al conectar Spotify."] }
       : rawInsight || { title: "Sin datos suficientes", copy: "Spotify todavía no devolvió una muestra analizable.", facts: [] };
@@ -378,13 +421,20 @@ function formatHistoryDate(timestamp) {
   return new Intl.DateTimeFormat("es-AR", { month: "short", year: "numeric", timeZone: "UTC" }).format(timestamp);
 }
 
-function renderHistory() {
-  if (!historyEntries.length || !window.FrecuenciaHistory) return;
-  const analysis = window.FrecuenciaHistory.aggregateHistory(historyEntries, historyRange);
-  const normalizedQuery = historyQuery.trim().toLocaleLowerCase("es");
-  const filteredTracks = normalizedQuery
-    ? analysis.tracks.filter((item) => `${item.track} ${item.artist} ${item.album}`.toLocaleLowerCase("es").includes(normalizedQuery))
-    : analysis.tracks;
+async function renderHistory() {
+  if (!historyCount) return;
+  const version = ++historyRequestVersion;
+  try {
+    const result = await historyTask("analyze", { range: historyRange, options: { query: historyQuery, sort: historySort } });
+    if (version !== historyRequestVersion) return;
+    historyAnalysis = result.analysis;
+    renderHistoryAnalysis(result.analysis);
+  } catch (error) { showToast(error.message); }
+}
+
+function renderHistoryAnalysis(analysis) {
+  if (!analysis) return;
+  const filteredTracks = analysis.tracks;
   const visibleTracks = filteredTracks.slice(0, historyLimit);
 
   $("#history-play-count").textContent = formatNumber(analysis.summary.plays);
@@ -406,7 +456,23 @@ function renderHistory() {
     <li><span>${String(artist.rank).padStart(2, "0")}</span><strong>${escapeHtml(artist.artist)}</strong><small>${formatNumber(artist.plays)} escuchas</small></li>
   `).join("") : '<li class="history-panel-empty">No hay artistas para este período.</li>';
 
-  $("#history-result-count").textContent = `${formatNumber(filteredTracks.length)} ${filteredTracks.length === 1 ? "canción" : "canciones"} en el ranking`;
+  $("#history-result-count").textContent = `${formatNumber(analysis.matchingTracks)} coincidencias · mostrando ${visibleTracks.length} de hasta 1000`;
+  $("#history-coverage").textContent = `Archivo hasta ${formatHistoryDate(analysis.summary.archiveEnd)}. Los períodos terminan en esa fecha, no hoy. ${formatNumber(analysis.summary.shortPlays)} registros de menos de 30 s incluidos en el tiempo, excluidos del ranking.${analysis.summary.undated ? ` ${formatNumber(analysis.summary.undated)} registros sin fecha: sólo en Todo.` : ""}`;
+  const habits = analysis.habits;
+  const percent = (flag) => flag.known ? `${Math.round(flag.yes / flag.known * 100)}%` : "—";
+  const habitCards = [
+    ["Días con música", formatNumber(habits.activeDays), "Días UTC con al menos una escucha de 30 s."],
+    ["Racha más larga", `${habits.longestStreak} días`, "Días consecutivos con escuchas de al menos 30 s."],
+    ["Artistas efectivos", habits.effectiveArtists ?? "—", "Diversidad de escuchas: 5 equivale a cinco artistas escuchados por igual. Entropía de Shannon."],
+    ["Tus 5 artistas principales", habits.topFiveShare === null ? "—" : `${habits.topFiveShare}%`, "Parte de las reproducciones de 30 s o más que reúnen entre los cinco."],
+    ["Saltos registrados", percent(habits.flags.skipped), `${formatNumber(habits.flags.skipped.yes)} de ${formatNumber(habits.flags.skipped.known)} registros con dato de salto. No implica una canción completa.`],
+    ["Modo aleatorio", percent(habits.flags.shuffle), `${formatNumber(habits.flags.shuffle.known)} registros con dato de shuffle. Los campos ausentes no se cuentan como no.`],
+    ["Sin conexión", percent(habits.flags.offline), `${formatNumber(habits.flags.offline.known)} registros con dato offline.`]
+  ];
+  $("#history-habits").innerHTML = habitCards.map(([label, value, copy]) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><p>${escapeHtml(copy)}</p></article>`).join("");
+  const peak = Math.max(1, ...habits.hours);
+  $("#history-hours").innerHTML = habits.hours.map((plays, hour) => `<div class="hour-column" title="${hour}:00 UTC · ${formatNumber(plays)} reproducciones"><span style="height:${Math.max(2, plays / peak * 100)}%"></span><small>${hour % 3 === 0 ? hour : ""}</small><span class="sr-only">${hour}:00 UTC: ${plays} reproducciones</span></div>`).join("");
+  $("#history-platforms").textContent = habits.platforms.length ? `Plataformas del archivo: ${habits.platforms.map(([name, ms]) => `${name} (${formatListeningTime(ms)})`).join(" · ")}` : "Este archivo no incluye plataformas.";
   $("#history-ranking").innerHTML = visibleTracks.length ? visibleTracks.map((item) => {
     const url = spotifyTrackUrl(item.uri);
     const title = escapeHtml(item.track);
@@ -423,13 +489,16 @@ function renderHistory() {
 }
 
 async function importHistoryFiles(files) {
-  if (!files?.length || !window.FrecuenciaHistory) return;
+  if (!files?.length || historyImporting) return;
+  historyImporting = true;
+  ++historyRequestVersion;
   const uploader = $("#history-upload");
   uploader.classList.add("loading");
   uploader.setAttribute("aria-busy", "true");
   try {
-    const result = await window.FrecuenciaHistory.parseHistoryFiles([...files]);
-    historyEntries = result.entries;
+    const result = await historyTask("import", { files: [...files] });
+    historyCount = result.count;
+    historyAnalysis = result.analysis;
     historyRange = "all";
     historyLimit = 100;
     historyQuery = "";
@@ -437,21 +506,34 @@ async function importHistoryFiles(files) {
     $$(".history-range").forEach((button) => button.classList.toggle("active", button.dataset.historyRange === "all"));
     $("#history-results").hidden = false;
     uploader.classList.add("compact");
-    renderHistory();
+    historySort = "plays";
+    $("#history-sort").value = "plays";
+    renderHistoryAnalysis(result.analysis);
+    try {
+      await historyTask($("#history-remember").checked ? "save" : "forget");
+    } catch (error) { $("#history-remember").checked = false; showToast(error.message); }
     const rejectedCopy = result.rejected.length ? ` ${result.rejected.length} archivo(s) no se pudieron leer.` : "";
-    showToast(`${formatNumber(result.entries.length)} registros procesados en tu dispositivo.${rejectedCopy}`);
+    $("#history-status").textContent = `${formatNumber(result.count)} registros musicales. ${formatNumber(result.duplicates)} duplicados omitidos.${rejectedCopy} ${$("#history-remember").checked ? "Guardado en este navegador." : "Disponible durante esta visita."}`;
+    showToast("Tu historial está listo.");
     $("#history-results").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) {
+    $("#history-status").textContent = error.message;
     showToast(error.message || "No pudimos leer esos archivos de Spotify.");
   } finally {
+    historyImporting = false;
     uploader.classList.remove("loading");
     uploader.setAttribute("aria-busy", "false");
     $("#history-files").value = "";
   }
 }
 
-function clearHistory() {
-  historyEntries = [];
+async function clearHistory() {
+  if (historyImporting) return;
+  try { await historyTask("clear"); }
+  catch (error) { showToast(error.message); return; }
+  ++historyRequestVersion;
+  historyCount = 0;
+  historyAnalysis = null;
   historyRange = "all";
   historyLimit = 100;
   historyQuery = "";
@@ -459,17 +541,26 @@ function clearHistory() {
   $("#history-upload").classList.remove("compact");
   $("#history-ranking").replaceChildren();
   $("#history-search").value = "";
-  showToast("El historial se quitó de esta sesión.");
+  $("#history-remember").checked = false;
+  $("#history-status").textContent = "Historial eliminado de esta visita y del almacenamiento local.";
+  showToast("El historial se eliminó de este navegador.");
 }
 
 async function loadLiveData(range, refresh = false) {
+  const requestId = ++liveRequestId;
+  liveController?.abort();
+  liveController = new AbortController();
+  const timeout = setTimeout(() => liveController?.abort(), 60_000);
+  liveError = false;
   setLoading(true);
   try {
     const query = new URLSearchParams({ range });
     if (refresh) query.set("refresh", "true");
-    const response = await fetch(`/api/insights?${query}`, { headers: { Accept: "application/json" } });
+    const response = await fetch(`/api/insights?${query}`, { headers: { Accept: "application/json" }, signal: liveController.signal });
+    if (requestId !== liveRequestId) return false;
     if (response.status === 401) {
       setSignedOut();
+      render(demoData[currentRange], false);
       showToast("Tu sesión de Spotify venció. Volvé a conectar tu cuenta.");
       return false;
     }
@@ -477,13 +568,27 @@ async function loadLiveData(range, refresh = false) {
       throw new Error(response.status === 429 ? "rate_limit" : "spotify_error");
     }
     const payload = await response.json();
-    render(payload);
+    if (requestId !== liveRequestId) return false;
+    render(payload, true);
+    $("#data-notice").hidden = true;
     return true;
   } catch (error) {
+    if (requestId !== liveRequestId) return false;
+    liveError = true;
+    $("#data-notice").hidden = false;
+    $("#data-notice-copy").textContent = dataIsLive
+      ? `No se pudo actualizar. Seguís viendo los últimos datos cargados: ${currentData.label}.`
+      : "No pudimos cargar tus estadísticas. Los gráficos visibles son una demostración; podés reintentar o importar tu historial.";
+    const shownRange = dataIsLive ? currentData.range : currentRange;
+    if (shownRange) {
+      currentRange = shownRange;
+      $$(".range-button").forEach((button) => button.classList.toggle("active", button.dataset.range === shownRange));
+    }
     showToast(error.message === "rate_limit" ? "Spotify está respondiendo lento. Probá de nuevo en un momento." : "No pudimos leer tus estadísticas ahora mismo.");
     return false;
   } finally {
-    setLoading(false);
+    clearTimeout(timeout);
+    if (requestId === liveRequestId) setLoading(false);
   }
 }
 
@@ -491,19 +596,20 @@ function setLoading(isLoading) {
   $("#inicio").setAttribute("aria-busy", String(isLoading));
   $$(".range-button").forEach((button) => { button.disabled = isLoading; });
   $("#refresh-button").disabled = isLoading;
-  $("#share-button").disabled = isLoading;
+  $("#share-button").disabled = isLoading || !dataIsLive;
   $("#refresh-button").classList.toggle("loading", isLoading);
   if (isLoading && authenticated) {
     $("#mode-pill").innerHTML = "<span></span> Leyendo tu música…";
   } else if (authenticated) {
-    $("#mode-pill").innerHTML = "<span></span> Datos reales";
+    $("#mode-pill").innerHTML = liveError ? "<span></span> Sin actualizar" : "<span></span> Datos reales";
+    if (!dataIsLive) $("#mode-pill").innerHTML = "<span></span> Vista de ejemplo";
   }
 }
 
 function setSignedIn(profile) {
   authenticated = true;
   $("#mode-pill").classList.add("live");
-  $("#mode-pill").innerHTML = "<span></span> Datos reales";
+  $("#mode-pill").innerHTML = "<span></span> Cargando tu cuenta…";
   $("#connect-button").classList.add("logout");
   $("#connect-button").innerHTML = "Cerrar sesión";
   $("#connect-button").href = "/auth/logout";
@@ -530,6 +636,7 @@ function setSignedIn(profile) {
 
 function setSignedOut() {
   authenticated = false;
+  dataIsLive = false;
   $("#mode-pill").classList.remove("live");
   $("#mode-pill").innerHTML = "<span></span> Vista de ejemplo";
   $("#connect-button").classList.remove("logout");
@@ -543,9 +650,9 @@ function setSignedOut() {
 }
 
 async function shareReport() {
-  if (!authenticated || !currentData) return;
+  if (!authenticated || !currentData || !dataIsLive) return;
   const leadArtist = currentData.artists?.[0]?.name || "mi artista favorito";
-  const leadGenre = currentData.genres?.[0]?.[0] || "una mezcla única";
+  const leadGenre = normalizedGenres(currentData)[0]?.name || "sin género verificado";
   const summary = `Mi Frecuencia · ${currentData.label}: mi artista #1 según Spotify es ${leadArtist} y el género con mayor presencia es ${leadGenre}.`;
   try {
     if (navigator.share) {
@@ -562,7 +669,7 @@ async function shareReport() {
 function handleAuthResult() {
   const params = new URLSearchParams(location.search);
   if (params.get("connected") === "1") {
-    showToast("Spotify conectado. Ya estás viendo tus datos reales.");
+    showToast("Spotify conectado. Estamos cargando tus estadísticas.");
   } else if (params.get("logged_out") === "1") {
     showToast("Sesión cerrada.");
   } else if (params.has("auth_error")) {
@@ -603,9 +710,9 @@ $$('.range-button').forEach((button) => {
     $$('.range-button').forEach((item) => item.classList.remove("active"));
     button.classList.add("active");
     currentRange = button.dataset.range;
-    localStorage.setItem("frecuencia_range", currentRange);
+    try { localStorage.setItem("frecuencia_range", currentRange); } catch {}
     if (authenticated) await loadLiveData(currentRange);
-    else render(demoData[currentRange]);
+    else render(demoData[currentRange], false);
   });
 });
 
@@ -626,8 +733,16 @@ $("#refresh-button").addEventListener("click", async () => {
 
 $("#share-button").addEventListener("click", shareReport);
 
-$("#connect-button").addEventListener("click", (event) => {
-  if ($("#connect-button").dataset.authAction === "logout") return;
+$("#connect-button").addEventListener("click", async (event) => {
+  if ($("#connect-button").dataset.authAction === "logout") {
+    event.preventDefault();
+    try {
+      const response = await fetch("/auth/logout", { method: "POST", headers: { "X-Frecuencia-Action": "logout" } });
+      if (!response.ok) throw new Error("logout");
+      location.assign("/?logged_out=1");
+    } catch { showToast("No pudimos cerrar la sesión. Volvé a intentar."); }
+    return;
+  }
   if (!apiAvailable || !spotifyConfigured) {
     event.preventDefault();
     showToast(spotifyConfigured ? "El backend de Spotify no está disponible." : "La conexión con Spotify todavía no está configurada.");
@@ -646,18 +761,46 @@ $$('.history-range').forEach((button) => {
   });
 });
 
+let searchTimer;
 $("#history-search").addEventListener("input", (event) => {
   historyQuery = event.target.value;
   historyLimit = 100;
-  renderHistory();
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(renderHistory, 200);
 });
 
 $("#history-more").addEventListener("click", () => {
   historyLimit = Math.min(1000, historyLimit + 100);
-  renderHistory();
+  renderHistoryAnalysis(historyAnalysis);
 });
 
 $("#history-clear").addEventListener("click", clearHistory);
+$("#data-retry").addEventListener("click", () => loadLiveData(currentRange));
+$("#history-select").addEventListener("click", () => $("#history-files").click());
+$("#history-sort").addEventListener("change", (event) => {
+  historySort = event.target.value; historyLimit = 100; renderHistory();
+});
+$("#history-remember").addEventListener("change", async (event) => {
+  const remember = event.target.checked;
+  if (!historyCount) return;
+  try {
+    await historyTask(remember ? "save" : "forget");
+    $("#history-status").textContent = remember ? "Guardado sólo en este navegador. Quitar historial borra la copia local." : "La copia guardada se eliminó. El análisis sigue disponible durante esta visita.";
+  } catch (error) { event.target.checked = !remember; showToast(error.message); }
+});
+
+async function restoreHistory() {
+  try {
+    const result = await historyTask("restore");
+    if (!result.count || historyImporting) return;
+    historyCount = result.count; historyAnalysis = result.analysis;
+    $("#history-remember").checked = true;
+    $("#history-results").hidden = false;
+    $("#history-upload").classList.add("compact");
+    $("#history-status").textContent = `${formatNumber(result.count)} registros restaurados de este navegador.`;
+    renderHistoryAnalysis(result.analysis);
+  } catch { /* Private browsing may deny IndexedDB; file imports still work. */ }
+}
 
 const historyUpload = $("#history-upload");
 ["dragenter", "dragover"].forEach((eventName) => historyUpload.addEventListener(eventName, (event) => {
@@ -670,6 +813,7 @@ const historyUpload = $("#history-upload");
 }));
 historyUpload.addEventListener("drop", (event) => importHistoryFiles(event.dataTransfer.files));
 
-render(demoData[currentRange]);
+render(demoData[currentRange], false);
 handleAuthResult();
 detectSession();
+restoreHistory();

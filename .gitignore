@@ -6,3 +6,5 @@ __pycache__/
 data/*
 .sites-runtime/
 site-package.tar.gz
+artifacts/
+node_modules/

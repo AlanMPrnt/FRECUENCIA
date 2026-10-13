@@ -6,9 +6,11 @@ import re
 import secrets
 import sqlite3
 import time
+import threading
 import unicodedata
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request as URLRequest, urlopen
@@ -66,13 +68,15 @@ INSIGHTS_CACHE_TTL_SECONDS = int(
 )
 TOKEN_TTL_SECONDS = 60 * 60 * 24 * 180
 GENRE_CACHE_TTL_SECONDS = 60 * 60 * 24 * 30
-CACHE_SCHEMA_VERSION = "v3"
+CACHE_SCHEMA_VERSION = "v4"
 SCOPES = "user-top-read user-read-private"
 MUSICBRAINZ_API = "https://musicbrainz.org/ws/2/artist/"
 MUSICBRAINZ_USER_AGENT = os.getenv(
     "MUSICBRAINZ_USER_AGENT",
     "Frecuencia/0.5 (https://github.com/AlanMPrnt/FRECUENCIA)",
 )
+musicbrainz_lock = threading.Lock()
+musicbrainz_last_request = 0.0
 
 if IS_PRODUCTION:
     missing = []
@@ -117,7 +121,8 @@ def spotify_configured() -> bool:
     return bool(CLIENT_ID and CLIENT_SECRET and REDIRECT_URI)
 
 
-def open_database() -> sqlite3.Connection:
+@contextmanager
+def open_database() -> Iterator[sqlite3.Connection]:
     DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(DATABASE_PATH, timeout=10)
     connection.execute("PRAGMA journal_mode=WAL")
@@ -150,7 +155,11 @@ def open_database() -> sqlite3.Connection:
         )
         """
     )
-    return connection
+    try:
+        with connection:
+            yield connection
+    finally:
+        connection.close()
 
 
 class SQLiteTokenCache(CacheHandler):
@@ -324,9 +333,11 @@ def spotify_client(request: Request) -> spotipy.Spotify:
         raise HTTPException(status_code=401, detail="Conectá tu cuenta de Spotify.")
     try:
         token = oauth.validate_token(token_info)
-    except Exception as exc:
-        oauth.cache_handler.delete()
-        raise HTTPException(status_code=401, detail="La sesión de Spotify expiró.") from exc
+    except spotipy.oauth2.SpotifyOauthError as exc:
+        if getattr(exc, "error", None) == "invalid_grant":
+            oauth.cache_handler.delete()
+            raise HTTPException(status_code=401, detail="La sesión de Spotify expiró.") from exc
+        raise HTTPException(status_code=503, detail="No pudimos renovar la sesión. Reintentá en un momento.") from exc
     if not token:
         oauth.cache_handler.delete()
         raise HTTPException(status_code=401, detail="La sesión de Spotify expiró.")
@@ -420,14 +431,14 @@ def canonical_genre(value: str) -> str | None:
 def cached_artist_genres(artist_name: str) -> list[str] | None:
     artist_key = normalize_artist_key(artist_name)
     if redis_client is not None:
-        value = redis_client.get(f"frecuencia:genres:{artist_key}")
+        value = redis_client.get(f"frecuencia:genres:v4:{artist_key}")
         return json.loads(value) if value is not None else None
 
     now = int(time.time())
     with open_database() as connection:
         row = connection.execute(
             "SELECT genres FROM artist_genres WHERE artist_key = ? AND expires_at > ?",
-            (artist_key, now),
+            (f"v4:{artist_key}", now),
         ).fetchone()
     return json.loads(row[0]) if row else None
 
@@ -435,10 +446,11 @@ def cached_artist_genres(artist_name: str) -> list[str] | None:
 def cache_artist_genres(artist_name: str, genres: list[str]) -> None:
     artist_key = normalize_artist_key(artist_name)
     serialized = json.dumps(genres, ensure_ascii=False)
+    ttl = GENRE_CACHE_TTL_SECONDS if genres else 60 * 60 * 24
     if redis_client is not None:
         redis_client.setex(
-            f"frecuencia:genres:{artist_key}",
-            GENRE_CACHE_TTL_SECONDS,
+            f"frecuencia:genres:v4:{artist_key}",
+            ttl,
             serialized,
         )
         return
@@ -453,14 +465,15 @@ def cache_artist_genres(artist_name: str, genres: list[str]) -> None:
                 expires_at = excluded.expires_at
             """,
             (
-                artist_key,
+                f"v4:{artist_key}",
                 serialized,
-                int(time.time()) + GENRE_CACHE_TTL_SECONDS,
+                int(time.time()) + ttl,
             ),
         )
 
 
 def musicbrainz_genres(artist_names: list[str]) -> dict[str, list[str]]:
+    global musicbrainz_last_request
     if not artist_names:
         return {}
     clauses = []
@@ -470,6 +483,15 @@ def musicbrainz_genres(artist_names: list[str]) -> dict[str, list[str]]:
     query = " OR ".join(clauses)
     url = f"{MUSICBRAINZ_API}?{urlencode({'query': query, 'fmt': 'json', 'limit': 100})}"
     request = URLRequest(url, headers={"User-Agent": MUSICBRAINZ_USER_AGENT})
+    # Share the throttle across instances when Redis is configured. On contention
+    # leave coverage incomplete and retry later, rather than caching a false miss.
+    with musicbrainz_lock:
+        wait = max(0.0, 1.1 - (time.monotonic() - musicbrainz_last_request))
+        if wait:
+            time.sleep(wait)
+        if redis_client is not None and not redis_client.set("frecuencia:musicbrainz:rate", "1", nx=True, px=1100):
+            return {}
+        musicbrainz_last_request = time.monotonic()
     try:
         with urlopen(request, timeout=8) as response:
             payload = json.loads(response.read().decode("utf-8"))
@@ -491,13 +513,12 @@ def musicbrainz_genres(artist_names: list[str]) -> dict[str, list[str]]:
         if not matches:
             results[key] = []
             continue
-        best = max(
-            matches,
-            key=lambda item: (
-                sum(max(0, int(tag.get("count") or 0)) for tag in item.get("tags") or []),
-                int(item.get("score") or 0),
-            ),
-        )
+        # A name alone cannot resolve homonyms. Do not assign the most popular
+        # namesake's genres to a different Spotify artist.
+        if len(matches) != 1:
+            results[key] = []
+            continue
+        best = matches[0]
         raw_tags = [*(best.get("genres") or []), *(best.get("tags") or [])]
         raw_tags.sort(key=lambda tag: int(tag.get("count") or 0), reverse=True)
         verified = []
@@ -516,7 +537,7 @@ def enrich_artist_genres(
 ) -> None:
     candidates: dict[str, str] = {}
     for artists in artists_by_range.values():
-        for artist in artists[:15]:
+        for artist in artists[:20]:
             name = str(artist.get("name") or "").strip()
             if name and not artist.get("genres"):
                 candidates.setdefault(normalize_artist_key(name), name)
@@ -530,12 +551,16 @@ def enrich_artist_genres(
         else:
             genre_map[key] = cached
 
-    queried_names = unresolved[:24]
-    discovered = musicbrainz_genres(queried_names)
-    for name in queried_names:
-        genres = discovered.get(normalize_artist_key(name), [])
-        genre_map[normalize_artist_key(name)] = genres
-        cache_artist_genres(name, genres)
+    for offset in range(0, len(unresolved), 20):
+        queried_names = unresolved[offset:offset + 20]
+        discovered = musicbrainz_genres(queried_names)
+        for name in queried_names:
+            key = normalize_artist_key(name)
+            if key not in discovered:
+                continue  # An outage is not evidence that an artist has no genres.
+            genres = discovered[key]
+            genre_map[key] = genres
+            cache_artist_genres(name, genres)
 
     for artists in artists_by_range.values():
         for artist in artists:
@@ -762,6 +787,7 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
             "explicitShare": explicit_share(tracks),
             "genreCount": len(unique_genres),
             "genreSampleSize": genre_sample_size,
+            "genreCoveredArtists": sum(bool(artist.get("genres")) for artist in artists[:genre_sample_size]),
             "genreSource": genre_source,
             "genreInsight": genre_insight,
             "genres": genres,
@@ -782,7 +808,7 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
 app = FastAPI(
     title="Frecuencia API",
     description="Backend de Tu ADN musical, construido con Spotipy.",
-    version="0.5.0",
+    version="0.6.0",
     docs_url=None if IS_PRODUCTION else "/api/docs",
     redoc_url=None,
 )
@@ -806,6 +832,8 @@ async def security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    if request.url.path.startswith(("/api/", "/auth/")):
+        response.headers["Cache-Control"] = "private, no-store"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "script-src 'self'; "
@@ -838,9 +866,12 @@ def auth_status(request: Request, response: Response) -> dict[str, Any]:
     token_info = oauth.cache_handler.get_cached_token()
     try:
         authenticated = bool(token_info and oauth.validate_token(token_info))
-    except Exception:
-        oauth.cache_handler.delete()
-        authenticated = False
+    except spotipy.oauth2.SpotifyOauthError as exc:
+        if getattr(exc, "error", None) == "invalid_grant":
+            oauth.cache_handler.delete()
+            authenticated = False
+        else:
+            raise HTTPException(status_code=503, detail="Spotify no pudo validar la sesión. Reintentá.") from exc
     profile = None
     if authenticated:
         try:
@@ -910,8 +941,10 @@ def callback(
     return RedirectResponse("/?connected=1", status_code=302)
 
 
-@app.get("/auth/logout")
+@app.post("/auth/logout")
 def logout(request: Request) -> RedirectResponse:
+    if request.headers.get("X-Frecuencia-Action") != "logout":
+        raise HTTPException(status_code=403, detail="Solicitud de cierre de sesión inválida.")
     session_id = request.session.get("session_id")
     if session_id:
         token_cache_for(session_id).delete()
@@ -929,6 +962,8 @@ def insights(
     refresh: bool = Query(default=False),
 ) -> dict[str, Any]:
     response.headers["Cache-Control"] = "private, no-store"
+    # Validate the token before serving personal data from the cache.
+    sp = spotify_client(request)
     session_id = session_id_for(request)
     cached = None if refresh else cached_insights(session_id, range)
     if cached is not None:
@@ -936,7 +971,7 @@ def insights(
         return cached
 
     try:
-        payloads = build_all_insights(spotify_client(request))
+        payloads = build_all_insights(sp)
         for time_range, time_range_payload in payloads.items():
             cache_insights(session_id, time_range, time_range_payload)
         response.headers["X-Frecuencia-Cache"] = "MISS"
@@ -948,6 +983,7 @@ def insights(
         raise HTTPException(
             status_code=status_code,
             detail="Spotify no pudo responder en este momento.",
+            headers={"Retry-After": str((exc.headers or {}).get("Retry-After", "30"))} if status_code == 429 else None,
         ) from exc
 
 

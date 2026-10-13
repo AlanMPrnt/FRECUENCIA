@@ -9,7 +9,10 @@ Aplicación web pública para que cada usuario conecte Spotify y vea sus artista
 - Afinidad musical para 4 semanas, 6 meses y aproximadamente 1 año.
 - Top 50 en vivo de artistas y canciones, el máximo que entrega la API por período.
 - Géneros verificados con el dato de Spotify y respaldo de MusicBrainz cuando Spotify devuelve el campo vacío.
-- Importador privado del historial de Spotify para calcular un Top 1000 con reproducciones y tiempo escuchado reales.
+- Importador privado de ZIP y JSON de Spotify, con procesamiento en un Web Worker y verificación de integridad del ZIP.
+- Top 1000 ordenable por reproducciones o tiempo, búsqueda en todo el catálogo importado y eliminación conservadora de duplicados.
+- Guardado local opcional en IndexedDB, restauración al recargar y borrado desde **Quitar historial**.
+- Hábitos: horarios UTC, días activos, rachas, diversidad efectiva de artistas, concentración del Top 5, saltos, shuffle, offline y plataformas.
 - Búsqueda y filtros de 4 semanas, 6 meses, 1 año o todo el historial importado.
 - Comparación concreta del Top 20: artistas repetidos, que entraron y que salieron, con sus nombres.
 - Métricas de década dominante, duración media, contenido explícito, colaboraciones, álbumes, amplitud temporal y artistas acreditados.
@@ -23,18 +26,28 @@ Aplicación web pública para que cada usuario conecte Spotify y vea sus artista
 
 ### Top 50 en vivo y Top 1000 histórico
 
-Spotify permite consultar hasta 50 canciones y 50 artistas favoritos por cada período. Ese ranking expresa afinidad y no incluye el número personal de reproducciones. Frecuencia no inventa ese dato.
+Frecuencia consulta las primeras 50 canciones y 50 artistas favoritos por cada período. Ese ranking expresa afinidad y no incluye el número personal de reproducciones. Frecuencia no inventa ese dato.
 
-La presencia de géneros se calcula sobre los primeros 20 artistas y muestra tanto la cantidad de artistas como sus nombres. Como Spotify marcó el campo `genres` como obsoleto y puede devolverlo vacío, Frecuencia intenta completar solamente esas ausencias con etiquetas verificadas de [MusicBrainz](https://musicbrainz.org/doc/MusicBrainz_API). La consulta se hace en lote, se almacena en caché y respeta el límite público del servicio. MusicBrainz es una fuente abierta con condiciones específicas para uso no comercial; un producto comercial debe revisar sus términos y capacidad antes de depender de ella.
+La presencia de géneros se calcula sobre los primeros 20 artistas y muestra la cobertura, cantidad y nombres de artistas asociados. Si Spotify no devuelve géneros, Frecuencia intenta completar esas ausencias con etiquetas comunitarias de [MusicBrainz](https://musicbrainz.org/doc/MusicBrainz_API), mediante coincidencia de nombre normalizado. Se omiten homónimos detectados: esta correspondencia no garantiza identidad cuando la búsqueda no devuelve todos los candidatos. Las consultas se hacen en lotes con regulación local y compartida mediante Redis. Los fallos temporales no se guardan como ausencia de géneros. MusicBrainz tiene condiciones específicas para uso comercial; revisar sus términos y capacidad antes de depender de ella.
 
-Para obtener cantidades reales, el usuario puede pedir su **Historial ampliado de reproducciones** desde [Privacidad de la cuenta de Spotify](https://www.spotify.com/account/privacy/), descomprimir el ZIP e importar juntos los archivos `Streaming_History_Audio_*.json`. El análisis:
+Para obtener cantidades calculadas desde los registros, el usuario puede pedir su **Historial ampliado de reproducciones** desde [Privacidad de la cuenta de Spotify](https://www.spotify.com/account/privacy/) e importar el ZIP directamente, o elegir juntos los archivos `Streaming_History_Audio_*.json`. El análisis:
 
 - se ejecuta íntegramente en el navegador;
 - no sube ni guarda los JSON en el servidor;
 - cuenta como reproducción cada registro musical con al menos 30 segundos escuchados;
 - excluye podcasts y otros episodios;
-- agrupa hasta 1000 canciones y 100 artistas;
-- desaparece al recargar la página o pulsar **Quitar historial**.
+- incluye escuchas cortas en el tiempo total, aunque las excluye del ranking;
+- elimina duplicados con la misma fecha, canción y duración; conserva registros sin fecha porque no puede identificarlos con seguridad;
+- busca en todas las canciones antes de mostrar hasta 1000 resultados;
+- interpreta campos de comportamiento ausentes como desconocidos, nunca como falsos;
+- aplica filtros hasta la última fecha del archivo y excluye registros sin fecha de períodos acotados;
+- muestra horas y rachas en UTC, usando la fecha de finalización del evento;
+- desaparece al recargar salvo que el usuario elija **Recordar mi historial en este navegador**;
+- permite borrar también la copia persistida con **Quitar historial**. El historial guardado pertenece al navegador, no está vinculado a la cuenta OAuth: no activar en dispositivos compartidos.
+
+La diversidad efectiva de artistas es `exp(Shannon)` sobre el número de reproducciones por artista. El Top 5 es su participación en esas reproducciones. Las tasas de salto, shuffle y offline usan como denominador sólo registros con el campo explícitamente presente. Ninguna de estas medidas permite inferir estados emocionales ni verificar que la canción se escuchó completa.
+
+Límites del importador: 256 MB por importación descomprimida, 128 MB por entrada ZIP; ZIP almacenado o deflate, sin contraseña, sin volúmenes múltiples ni ZIP64. El lector comprueba tamaños y CRC. En navegadores sin `DecompressionStream('deflate-raw')`, importar los JSON descomprimidos. Cada importación reemplaza el conjunto anterior. Si se omiten archivos inválidos, se informa la cantidad.
 
 También se admite el formato anterior `StreamingHistory*.json`, aunque normalmente contiene un período más corto. Spotify explica los campos disponibles en su guía [Understanding your data](https://support.spotify.com/article/understanding-your-data/).
 
@@ -138,8 +151,21 @@ Para permitir el login de cualquier usuario necesitás solicitar **Extended Quot
 
 - `GET /auth/login` — inicia OAuth.
 - `GET /auth/callback` — valida `state` e intercambia el código.
-- `GET /auth/logout` — elimina la sesión.
+- `POST /auth/logout` — elimina la sesión; requiere el encabezado `X-Frecuencia-Action: logout` para impedir cierres de sesión desde formularios ajenos.
 - `GET /api/auth/status` — indica si el usuario está conectado.
 - `GET /api/insights?range=short_term|medium_term|long_term` — devuelve estadísticas personales.
 - `GET /api/insights?range=short_term&refresh=true` — renueva los datos ignorando la caché vigente.
 - `GET /api/health` — comprobación de salud del servicio.
+
+## Verificación y publicación
+
+Publicación exclusivamente mediante GitHub `main` → integración Git de Vercel. No usar despliegues directos.
+
+Pruebas locales (Python con `requirements.txt` y `httpx`; Node 22+):
+
+```powershell
+python -m unittest discover -s tests -v
+node tests/history.test.js
+```
+
+Para las pruebas de navegador, instalar Playwright como herramienta de desarrollo y tener Chrome disponible. Iniciar la app en `127.0.0.1:8011` y ejecutar `node tests/browser.cjs`; `TEST_BASE_URL` permite elegir otro servidor **local de pruebas**. El recorrido usa un historial sintético y respuestas simuladas de Spotify: verifica importación, duplicados, búsqueda, persistencia, borrado, vista móvil y fallos de la API. No verifica credenciales reales ni permisos de acceso público de Spotify. Las capturas se guardan en `artifacts/`, excluido del repositorio.
