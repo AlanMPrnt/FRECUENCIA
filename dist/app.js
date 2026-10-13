@@ -509,11 +509,15 @@ async function importHistoryFiles(files) {
     historySort = "plays";
     $("#history-sort").value = "plays";
     renderHistoryAnalysis(result.analysis);
+    let persistenceWarning = "";
     try {
       await historyTask($("#history-remember").checked ? "save" : "forget");
-    } catch (error) { $("#history-remember").checked = false; showToast(error.message); }
+    } catch (error) {
+      $("#history-remember").checked = false;
+      persistenceWarning = " El navegador no permitió actualizar el almacenamiento; una copia anterior podría seguir guardada.";
+    }
     const rejectedCopy = result.rejected.length ? ` ${result.rejected.length} archivo(s) no se pudieron leer.` : "";
-    $("#history-status").textContent = `${formatNumber(result.count)} registros musicales. ${formatNumber(result.duplicates)} duplicados omitidos.${rejectedCopy} ${$("#history-remember").checked ? "Guardado en este navegador." : "Disponible durante esta visita."}`;
+    $("#history-status").textContent = `${formatNumber(result.count)} registros musicales. ${formatNumber(result.duplicates)} duplicados omitidos.${rejectedCopy} ${$("#history-remember").checked ? "Guardado en este navegador." : "Disponible durante esta visita."}${persistenceWarning}`;
     showToast("Tu historial está listo.");
     $("#history-results").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) {
@@ -529,7 +533,8 @@ async function importHistoryFiles(files) {
 
 async function clearHistory() {
   if (historyImporting) return;
-  try { await historyTask("clear"); }
+  let result;
+  try { result = await historyTask("clear"); }
   catch (error) { showToast(error.message); return; }
   ++historyRequestVersion;
   historyCount = 0;
@@ -542,8 +547,8 @@ async function clearHistory() {
   $("#history-ranking").replaceChildren();
   $("#history-search").value = "";
   $("#history-remember").checked = false;
-  $("#history-status").textContent = "Historial eliminado de esta visita y del almacenamiento local.";
-  showToast("El historial se eliminó de este navegador.");
+  $("#history-status").textContent = result.warning || "Historial eliminado de esta visita y del almacenamiento local.";
+  showToast(result.warning ? "El historial se quitó de esta visita. Revisá el aviso de almacenamiento." : "El historial se eliminó de este navegador.");
 }
 
 async function loadLiveData(range, refresh = false) {

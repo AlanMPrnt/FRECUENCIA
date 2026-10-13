@@ -88,6 +88,19 @@ const makeZip = require("./zip-fixture.js");
     await page.locator("#data-notice").waitFor({ state: "visible" });
     assert.equal(await page.locator('[data-range="short_term"]').getAttribute("class"), "range-button active");
     assert.match(await page.locator("#data-notice-copy").innerText(), /Ahora/);
+    // Simulate browsers that deny IndexedDB inside the worker. In-memory import
+    // and removal must remain usable without claiming persistent deletion.
+    await page.route("**/history-worker.js", async (route) => {
+      const response = await route.fetch();
+      const source = await response.text();
+      await route.fulfill({ response, body: source.replace('const request = indexedDB.open("frecuencia-history", 1);', 'throw new Error("Storage blocked for test");') });
+    });
+    await page.reload();
+    await page.locator("#history-files").setInputFiles({ name: "spotify-test.zip", mimeType: "application/zip", buffer: zip });
+    await page.waitForFunction(() => document.querySelector("#history-status").textContent.includes("no permitió"));
+    await page.locator("#history-clear").click();
+    await page.waitForFunction(() => document.querySelector("#history-results").hidden);
+    assert.match(await page.locator("#history-status").innerText(), /no pudimos comprobar/);
     assert.deepEqual(errors, []);
     console.log("Browser: ZIP → worker → ranking → search → persistence → deletion; mobile; API errors and period recovery: PASS");
   } finally { await browser.close(); }

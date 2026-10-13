@@ -39,8 +39,9 @@ self.onmessage = ({ data }) => {
       } else if (data.action === "forget") {
         await storage("clear");
       } else if (data.action === "clear") {
-        await storage("clear");
         entries = [];
+        try { await storage("clear"); }
+        catch { meta.warning = "El historial se quitó de esta visita. El navegador bloqueó el almacenamiento: no pudimos comprobar el borrado de una copia anterior."; }
       }
       const analysis = ["import", "restore", "analyze"].includes(data.action) && entries.length
         ? FrecuenciaHistory.aggregateHistory(entries, data.range || "all", data.options || {}) : null;
