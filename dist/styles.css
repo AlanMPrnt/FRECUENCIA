@@ -466,3 +466,76 @@ h1 { margin-bottom: 12px; font-family: var(--font-display); font-size: clamp(2.7
   .history-habits { grid-template-columns: 1fr 1fr; }
   .history-habits article { padding: 14px; }
 }
+
+/* Evolution lab: genre families, taste shift and ranking stability */
+.evolution-lab { margin-top: 16px; padding: 30px; background: linear-gradient(160deg, rgba(27,22,40,.94), rgba(14,14,17,.92)); }
+.evolution-stats { grid-template-columns: repeat(4, 1fr); }
+.evolution-stats strong { color: var(--violet); }
+.evolution-body { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 12px; margin-top: 12px; }
+.evolution-panel { min-width: 0; padding: 18px; border: 1px solid var(--line); border-radius: 17px; background: rgba(8,8,10,.32); }
+.family-legend { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.family-bars { display: grid; gap: 12px; margin-top: 16px; }
+.family-row { display: grid; grid-template-columns: minmax(120px, .9fr) minmax(0, 1.4fr) 44px; align-items: center; gap: 12px; }
+.family-name { min-width: 0; }
+.family-name strong { display: block; font-size: .84rem; }
+.family-name span { display: block; overflow: hidden; color: var(--muted); font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
+.family-meter { display: grid; gap: 4px; }
+.family-bar { display: block; height: 7px; min-width: 2px; border-radius: 999px; }
+.family-bar.artists { background: linear-gradient(90deg, #6d55c7, var(--violet)); }
+.family-bar.songs { background: linear-gradient(90deg, #7a9a12, var(--lime)); }
+.family-values { display: grid; gap: 1px; color: var(--muted); font-size: .64rem; text-align: right; }
+.family-moves, .bridge-list { list-style: none; margin: 12px 0 0; padding: 0; }
+.family-moves li, .bridge-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: .82rem; }
+.family-moves li span, .bridge-list li span { color: var(--muted); font-size: .72rem; text-align: right; }
+.family-moves li.up span { color: var(--lime); }
+.family-moves li.down span { color: var(--orange); }
+.bridge-heading { margin-top: 18px; }
+
+/* History heatmap */
+.heatmap-title { margin-top: 8px !important; }
+.history-heatmap { display: grid; grid-template-columns: 34px repeat(24, minmax(0, 1fr)); gap: 3px; margin: 14px 0 18px; }
+.history-heatmap small { color: var(--muted); font-size: .6rem; }
+.history-heatmap .heatmap-day { color: var(--muted); font-size: .66rem; align-self: center; }
+.history-heatmap i { display: block; aspect-ratio: 1; min-height: 10px; border-radius: 3px; background: rgba(217,255,67, calc(.05 + var(--heat) * .95)); }
+
+/* History story: eras, songs per year, forgotten favorites */
+.history-story { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+.history-story-panel { min-width: 0; padding: 18px; border: 1px solid var(--line); border-radius: 17px; background: rgba(8,8,10,.32); }
+.story-wide { grid-column: span 1; }
+.story-eras { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+.story-eras li { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 0 12px; padding: 10px 12px; border-left: 3px solid var(--violet); border-radius: 8px; background: rgba(255,255,255,.025); }
+.story-eras li.longest { border-left-color: var(--lime); background: rgba(217,255,67,.06); }
+.story-eras .era-dates { grid-row: span 2; color: var(--muted); font-size: .7rem; align-self: center; }
+.story-eras strong { overflow: hidden; font-size: .88rem; text-overflow: ellipsis; white-space: nowrap; }
+.story-eras .era-meta { color: var(--muted); font-size: .68rem; }
+.story-table-wrap { max-height: 360px; margin-top: 12px; overflow: auto; }
+.story-table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+.story-table th { position: sticky; top: 0; padding: 6px 8px; background: var(--surface-solid); color: var(--muted); font-size: .62rem; font-weight: 600; letter-spacing: .06em; text-align: left; text-transform: uppercase; }
+.story-table td { padding: 8px; border-top: 1px solid var(--line); vertical-align: top; }
+.story-table td span { display: block; color: var(--muted); font-size: .68rem; }
+.story-table a { color: var(--text); text-decoration: underline; text-decoration-color: rgba(255,255,255,.25); }
+.story-year { color: var(--lime); font-family: var(--font-display); font-weight: 700; }
+.story-list { list-style: none; margin: 12px 0 0; padding: 0; }
+.story-list li { padding: 8px 0; border-top: 1px solid var(--line); }
+.story-list strong { display: block; overflow: hidden; font-size: .82rem; text-overflow: ellipsis; white-space: nowrap; }
+.story-list strong a { text-decoration: underline; text-decoration-color: rgba(255,255,255,.25); }
+.story-list span { color: var(--muted); font-size: .7rem; }
+.story-subheading { margin-top: 18px; }
+
+@media (max-width: 1120px) {
+  .evolution-body, .history-story { grid-template-columns: 1fr; }
+}
+@media (max-width: 780px) {
+  .evolution-lab { padding: 20px; }
+  .evolution-stats { grid-template-columns: repeat(2, 1fr); }
+  .family-row { grid-template-columns: minmax(0, 1fr) 40px; }
+  .family-meter { grid-column: 1 / -1; grid-row: 2; }
+  .family-values { grid-row: 1; grid-column: 2; }
+  .story-eras li { grid-template-columns: 1fr; }
+  .story-eras .era-dates { grid-row: auto; }
+  .history-heatmap { grid-template-columns: 28px repeat(24, minmax(0, 1fr)); gap: 2px; }
+  .history-heatmap i { min-height: 6px; border-radius: 2px; }
+}
+@media (max-width: 480px) {
+  .evolution-panel .history-panel-heading { flex-direction: column; gap: 6px; }
+}

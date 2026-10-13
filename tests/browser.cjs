@@ -34,7 +34,9 @@ const makeZip = require("./zip-fixture.js");
     await page.waitForFunction(() => document.querySelector("#history-status").textContent.includes("48 duplicados"));
     assert.equal(await page.locator("#history-play-count").innerText(), "47");
     assert.equal(await page.locator("#history-ranking tr").count(), 12);
-    assert.equal(await page.locator("#history-habits article").count(), 7);
+    assert.equal(await page.locator("#history-habits article").count(), 10);
+    assert.equal(await page.locator("#history-heatmap i").count(), 7 * 24);
+    assert.match(await page.locator("#story-years").innerText(), /2025/);
     assert.match(await page.locator("#history-status").innerText(), /Guardado/);
     await page.locator("#history-search").fill("Tema 11");
     await page.waitForFunction(() => document.querySelectorAll("#history-ranking tr").length === 1);
@@ -71,6 +73,9 @@ const makeZip = require("./zip-fixture.js");
       range: "short_term", profile: "rock experimental de nombre muy largo × pop", genreCoveredArtists: 1,
       genres: [{ name: "rock experimental de nombre muy largo", weight: 100, artistCount: 1, artistShare: 5, artists: ["Test artist"] }],
       dataScience: { sampleSize: 0 },
+      genreFamilies: [{ name: "Rock", share: 100, weightedScore: 1, artistCount: 1, examples: ["Test artist"] }],
+      tasteShift: { distance: 40, rising: [{ name: "Rock", delta: 12 }], falling: [] },
+      rankStability: 61, bridges: [],
       artists: [], tracks: [],
       comparison: { label: "Últimos 6 meses", sampleSize: 0, sharedCount: 0, enteredCount: 0, exitedCount: 0, entered: [] }
     }));
@@ -80,6 +85,9 @@ const makeZip = require("./zip-fixture.js");
     await page.waitForFunction(() => document.querySelector("#mode-pill").textContent.includes("Datos reales"));
     assert.equal(await page.locator("#data-notice").isVisible(), false);
     assert.match(await page.locator("#comparison-title").innerText(), /Top 0/);
+    assert.equal(await page.locator("#evo-shift").innerText(), "40%");
+    assert.equal(await page.locator("#evo-artist-stability").innerText(), "61%");
+    assert.match(await page.locator("#family-moves").innerText(), /Rock/);
     const labelsFit = await page.locator(".genre-node:not([hidden]) span").evaluateAll((labels) => labels.every((label) => label.scrollHeight <= label.parentElement.clientHeight));
     assert.equal(labelsFit, true, "genre labels stay inside circles");
     await page.unroute("**/api/insights?*");

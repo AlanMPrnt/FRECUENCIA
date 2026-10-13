@@ -67,7 +67,7 @@
         </div>
       </section>
 
-      <nav class="section-nav" aria-label="Secciones"><a href="#inicio">Resumen</a><a href="#historial-completo">Mi historial</a><a href="#artistas">Artistas y géneros</a></nav>
+      <nav class="section-nav" aria-label="Secciones"><a href="#inicio">Resumen</a><a href="#evolucion">Evolución</a><a href="#historial-completo">Mi historial</a><a href="#artistas">Artistas y géneros</a></nav>
       <div id="data-notice" class="data-notice" role="status" hidden><p id="data-notice-copy"></p><button id="data-retry" class="utility-button" type="button">Reintentar</button></div>
       <section class="hero-grid" aria-label="Resumen de tu ADN musical">
         <article class="card dna-card">
@@ -214,6 +214,57 @@
         </details>
       </section>
 
+      <section id="evolucion" class="card evolution-lab" aria-labelledby="evolution-title">
+        <div class="science-heading">
+          <div>
+            <p class="card-kicker">Data science de tu gusto</p>
+            <h2 id="evolution-title">Cómo se mueve tu mezcla</h2>
+          </div>
+          <p id="evolution-sample">Comparado con otro período · Top 20 artistas</p>
+        </div>
+        <div class="science-grid evolution-stats">
+          <article>
+            <span>Cambio de mezcla</span>
+            <strong id="evo-shift">—</strong>
+            <p id="evo-shift-copy">Cuánto cambió el reparto de familias de géneros.</p>
+          </article>
+          <article>
+            <span>Estabilidad de artistas</span>
+            <strong id="evo-artist-stability">—</strong>
+            <p>Coincidencia de rankings con más peso en los primeros puestos.</p>
+          </article>
+          <article>
+            <span>Estabilidad de canciones</span>
+            <strong id="evo-track-stability">—</strong>
+            <p>Lo mismo, para tus canciones favoritas.</p>
+          </article>
+          <article>
+            <span>Cobertura de géneros</span>
+            <strong id="evo-coverage">—</strong>
+            <p id="evo-coverage-copy">Artistas del Top 20 con género verificado.</p>
+          </article>
+        </div>
+        <div class="evolution-body">
+          <article class="evolution-panel">
+            <div class="history-panel-heading">
+              <div><span>Familias de géneros</span><h3>A quién seguís y qué escuchás</h3></div>
+              <small class="family-legend"><i class="dot dot-violet"></i> artistas <i class="dot dot-lime"></i> canciones</small>
+            </div>
+            <div id="family-bars" class="family-bars"></div>
+          </article>
+          <article class="evolution-panel">
+            <div class="history-panel-heading"><div><span>Movimiento</span><h3>Qué sube y qué baja</h3></div></div>
+            <ul id="family-moves" class="family-moves"></ul>
+            <div class="history-panel-heading bridge-heading"><div><span>Puentes</span><h3>Artistas que unen tus mundos</h3></div></div>
+            <ul id="bridge-list" class="bridge-list"></ul>
+          </article>
+        </div>
+        <details class="science-method">
+          <summary>Cómo se calcula</summary>
+          <p>Los géneros se agrupan en familias (por ejemplo, trap latino, RKT y reggaetón forman «Urbano latino»). Cada artista del Top 20 aporta su peso de ranking una sola vez, repartido entre sus familias. «Canciones» usa el artista principal de cada canción del Top 50. «Cambio de mezcla» es la distancia de Jensen-Shannon entre las dos mezclas: 0% es idéntica y 100% no comparten ninguna familia. La estabilidad usa rank-biased overlap: cambiar tu #1 pesa más que cambiar el #40. Los géneros salen de Spotify cuando los entrega y, si no, de MusicBrainz vinculado al ID exacto del artista.</p>
+        </details>
+      </section>
+
       <section id="historial-completo" class="card history-lab" aria-labelledby="history-title">
         <div class="history-glow" aria-hidden="true"></div>
         <header class="history-intro">
@@ -274,10 +325,10 @@
             <button id="history-clear" class="history-clear" type="button">Quitar historial</button>
           </div>
           <p id="history-coverage" class="data-explainer"></p>
-          <details class="science-method"><summary>Qué cuenta como escucha y qué significa cada dato</summary><p>Contamos una reproducción cuando el registro tiene al menos 30 segundos escuchados: es un criterio de Frecuencia. El tiempo total incluye también escuchas cortas. El ranking suma el tiempo de las reproducciones que cumplen el criterio. Un registro no prueba que hayas terminado la canción. Las tasas de salto, shuffle y offline usan sólo registros que incluyen ese campo. Los horarios, años y rachas se muestran en UTC, según la fecha de finalización registrada. Los filtros terminan en la última fecha del archivo. No representan datos en vivo.</p></details>
+          <details class="science-method"><summary>Qué cuenta como escucha y qué significa cada dato</summary><p>Contamos una reproducción cuando el registro tiene al menos 30 segundos escuchados: es un criterio de Frecuencia. El tiempo total incluye también escuchas cortas. El ranking suma el tiempo de las reproducciones que cumplen el criterio. Un registro no prueba que hayas terminado la canción. Las tasas de salto, shuffle y offline usan sólo registros que incluyen ese campo. Los horarios, años y rachas se muestran en la zona horaria de este dispositivo, según la fecha de finalización registrada. Una sesión termina tras 30 minutos sin música. Los filtros terminan en la última fecha del archivo. No representan datos en vivo.</p></details>
           <div class="science-heading history-habits-heading"><div><p class="card-kicker">Tus hábitos, con evidencia</p><h3>Cómo escuchás</h3></div><span>Calculado desde tu archivo</span></div>
           <div id="history-habits" class="science-grid history-habits"></div>
-          <div class="history-hours-panel"><h3>Tu día en música</h3><p class="data-explainer">Reproducciones por hora de finalización · UTC</p><div id="history-hours" class="history-hours" aria-label="Reproducciones por hora UTC"></div><p id="history-platforms" class="data-explainer"></p></div>
+          <div class="history-hours-panel"><h3>Tu día en música</h3><p id="history-hours-caption" class="data-explainer">Reproducciones por hora de finalización</p><div id="history-hours" class="history-hours" aria-label="Reproducciones por hora"></div><h3 class="heatmap-title">Tu semana, hora por hora</h3><div id="history-heatmap" class="history-heatmap" role="img" aria-label="Mapa de calor de reproducciones por día y hora"></div><p id="history-platforms" class="data-explainer"></p></div>
 
           <div class="history-insights">
             <article class="history-years-panel">
@@ -293,6 +344,27 @@
                 <small>Top 10</small>
               </div>
               <ol id="history-artists" class="history-artists"></ol>
+            </article>
+          </div>
+
+          <div class="history-story">
+            <article class="history-story-panel story-wide">
+              <div class="history-panel-heading"><div><span>Tu biografía musical</span><h3>Tus eras</h3></div><small>Meses seguidos con el mismo artista #1</small></div>
+              <ol id="story-eras" class="story-eras"></ol>
+            </article>
+            <article class="history-story-panel story-wide">
+              <div class="history-panel-heading"><div><span>Año por año</span><h3>Tu canción de cada año</h3></div><small>Más reproducciones</small></div>
+              <div class="story-table-wrap"><table class="story-table"><thead><tr><th>Año</th><th>Canción</th><th>Artista del año</th><th>Artistas nuevos</th></tr></thead><tbody id="story-years"></tbody></table></div>
+            </article>
+            <article class="history-story-panel">
+              <div class="history-panel-heading"><div><span>Para volver a escuchar</span><h3>Joyas olvidadas</h3></div><small>8+ escuchas, 6 meses sin sonar</small></div>
+              <ol id="story-forgotten" class="story-list"></ol>
+            </article>
+            <article class="history-story-panel">
+              <div class="history-panel-heading"><div><span>Lealtad</span><h3>Te acompañan hace años</h3></div><small>Siguen sonando</small></div>
+              <ol id="story-loyal" class="story-list"></ol>
+              <div class="history-panel-heading story-subheading"><div><span>Señal de cansancio</span><h3>Las que más salteás</h3></div></div>
+              <ol id="story-skipped" class="story-list"></ol>
             </article>
           </div>
 

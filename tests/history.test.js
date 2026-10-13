@@ -86,6 +86,54 @@ assert.equal(history.aggregateHistory([
   { ...extended, playedAt: Date.parse("2025-01-04T12:00Z") }
 ]).habits.longestStreak, 2);
 
+// Story analytics over a synthetic two-year archive.
+const play = (track, artist, iso, extra = {}) => ({
+  track, artist, album: "", uri: `spotify:track:${track.replace(/\W/g, "")}`,
+  playedMs: 180000, playedAt: Date.parse(iso), skipped: null, shuffle: null, offline: null,
+  reasonEnd: "", platform: "", country: "", ...extra
+});
+const archive = [];
+for (let month = 0; month < 3; month++) {
+  for (let i = 0; i < 5; i++) archive.push(play("Era Song", "Artista Era", `2024-0${month + 1}-1${i}T20:00:00Z`));
+}
+for (let i = 0; i < 9; i++) archive.push(play("Vieja Favorita", "Artista Era", `2024-02-0${i + 1}T21:00:00Z`));
+for (let i = 0; i < 6; i++) archive.push(play("Obsesión", "Artista Nueva", `2025-06-01T1${i}:00:00Z`, { skipped: i < 4 }));
+archive.push(play("Cierre", "Artista Nueva", "2025-06-20T10:00:00Z"));
+const story = history.aggregateHistory(archive, "all").story;
+assert.equal(story.eras[0].artist, "Artista Era");
+assert.equal(story.eras[0].months, 3, "consecutive months merge into one era");
+assert.equal(story.obsession.track, "Obsesión");
+assert.equal(story.obsession.plays, 6);
+assert.deepEqual(story.years.map((year) => year.year), [2024, 2025]);
+assert.equal(story.years[1].track, "Obsesión");
+assert.equal(story.years[1].newArtists, 1);
+assert.deepEqual(story.forgotten.map((track) => track.track), ["Era Song", "Vieja Favorita"], "silent for six months with 8+ plays, most played first");
+assert.ok(!story.forgotten.some((track) => track.track === "Obsesión"));
+assert.equal(story.mostSkipped[0].rate, 67);
+const recent = history.aggregateHistory(archive, "four_weeks").story;
+assert.equal(recent.discovery.share, 100, "every play in the window is an artist first heard in it");
+const lastYear = history.aggregateHistory(archive, "one_year").story.discovery;
+assert.equal(lastYear.artists, 1, "Artista Era predates the year");
+assert.equal(lastYear.share, 100);
+const allEras = history.aggregateHistory([...archive, play("Era Song", "Artista Era", "2025-06-19T10:00:00Z")], "one_year").story.discovery;
+assert.equal(allEras.share, 88, "7 of 8 plays are new artists");
+
+// Sessions: a gap over 30 minutes starts a new session.
+const sessions = history.listeningSessions([
+  play("A", "X", "2025-01-01T10:03:00Z"), play("B", "X", "2025-01-01T10:06:00Z"),
+  play("C", "X", "2025-01-01T12:00:00Z")
+]);
+assert.equal(sessions.count, 2);
+assert.equal(sessions.longest.minutes, 6);
+
+// Local time: the same instant falls on another hour outside UTC.
+const lateNight = [play("A", "X", "2025-01-01T02:30:00Z")];
+assert.equal(history.aggregateHistory(lateNight, "all", { timeZone: "utc" }).habits.hours[2], 1);
+const localHour = new Date(Date.parse("2025-01-01T02:30:00Z")).getHours();
+assert.equal(history.aggregateHistory(lateNight, "all", { timeZone: "local" }).habits.hours[localHour], 1);
+assert.equal(history.aggregateHistory(lateNight, "all").habits.heatmap.flat().reduce((a, b) => a + b), 1);
+console.log("eras, obsessions, discovery, forgotten favorites, sessions and local time: ok");
+
 async function archiveTests() {
   const archive = require("../dist/archive.js");
   const makeZip = require("./zip-fixture.js");

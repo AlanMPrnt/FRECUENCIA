@@ -5,6 +5,8 @@ import math
 from statistics import median
 from typing import Any
 
+from backend.genres import artist_families
+
 
 def favorite_decade(tracks: list[dict[str, Any]]) -> str:
     decades: Counter[int] = Counter()
@@ -213,3 +215,167 @@ def ranking_comparison(
         "entered": entered[:6],
         "exited": exited[:6],
     }
+
+
+def family_breakdown(
+    artists: list[dict[str, Any]], *, sample_size: int = 20
+) -> list[dict[str, Any]]:
+    """Group the ranked sample into genre families. Each artist contributes its
+    rank weight once, split across its families, so shares add up to 100."""
+    sample = artists[:sample_size]
+    scores: Counter[str] = Counter()
+    names: dict[str, list[str]] = defaultdict(list)
+    for index, artist in enumerate(sample):
+        families = artist_families(artist.get("genres") or [])
+        if not families:
+            continue
+        weight = max(1, len(sample) - index) / len(families)
+        for family in families:
+            scores[family] += weight
+            names[family].append(artist.get("name", "Artista"))
+    return _family_rows(scores, names, "artistCount")
+
+
+def track_family_breakdown(
+    tracks: list[dict[str, Any]], genres_by_artist_id: dict[str, list[str]]
+) -> dict[str, Any]:
+    """Genre families of the ranked songs, through each song's main artist."""
+    scores: Counter[str] = Counter()
+    names: dict[str, list[str]] = defaultdict(list)
+    covered = 0
+    for index, track in enumerate(tracks):
+        main_artist = (track.get("artists") or [{}])[0]
+        families = artist_families(genres_by_artist_id.get(str(main_artist.get("id") or ""), []))
+        if not families:
+            continue
+        covered += 1
+        weight = max(1, len(tracks) - index) / len(families)
+        for family in families:
+            scores[family] += weight
+            names[family].append(track.get("name", "Canción"))
+    return {
+        "families": _family_rows(scores, names, "trackCount"),
+        "coveredTracks": covered,
+        "sampleSize": len(tracks),
+    }
+
+
+def _family_rows(
+    scores: Counter[str], names: dict[str, list[str]], count_key: str
+) -> list[dict[str, Any]]:
+    total = sum(scores.values())
+    if not total:
+        return []
+    return [
+        {
+            "name": family,
+            "share": round(score / total * 100),
+            "weightedScore": round(score, 3),
+            count_key: len(names[family]),
+            "examples": names[family][:4],
+        }
+        for family, score in scores.most_common()
+    ]
+
+
+def _distribution(rows: list[dict[str, Any]]) -> dict[str, float]:
+    total = sum(float(row.get("weightedScore") or 0) for row in rows)
+    if not total:
+        return {}
+    return {row["name"]: float(row["weightedScore"]) / total for row in rows}
+
+
+def jensen_shannon_distance(p: dict[str, float], q: dict[str, float]) -> float:
+    """Symmetric distance between two distributions: 0 identical, 1 disjoint."""
+    keys = set(p) | set(q)
+    mixture = {key: (p.get(key, 0.0) + q.get(key, 0.0)) / 2 for key in keys}
+
+    def kl(a: dict[str, float]) -> float:
+        return sum(
+            a[key] * math.log2(a[key] / mixture[key]) for key in a if a[key] > 0
+        )
+
+    divergence = (kl(p) + kl(q)) / 2
+    return math.sqrt(max(0.0, min(1.0, divergence)))
+
+
+def taste_shift(
+    current: list[dict[str, Any]], baseline: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    """How far the family mix moved between two periods, and what moved it."""
+    p, q = _distribution(current), _distribution(baseline)
+    if not p or not q:
+        return None
+    deltas = {key: (p.get(key, 0.0) - q.get(key, 0.0)) * 100 for key in set(p) | set(q)}
+    rising = sorted((key for key, value in deltas.items() if value >= 3), key=lambda key: -deltas[key])
+    falling = sorted((key for key, value in deltas.items() if value <= -3), key=lambda key: deltas[key])
+    return {
+        "distance": round(jensen_shannon_distance(p, q) * 100),
+        "rising": [{"name": key, "delta": round(deltas[key])} for key in rising[:3]],
+        "falling": [{"name": key, "delta": round(deltas[key])} for key in falling[:3]],
+        "method": "Distancia de Jensen-Shannon entre las mezclas de familias de géneros.",
+    }
+
+
+def rank_biased_overlap(
+    current_ids: list[str], baseline_ids: list[str], *, persistence: float = 0.9
+) -> int | None:
+    """Extrapolated rank-biased overlap (Webber et al., 2010), as a percentage.
+
+    Unlike a plain overlap count it rewards agreement at the top: swapping the
+    #1 and #2 artists changes more than swapping #40 and #41.
+    """
+    first = [item for item in current_ids if item]
+    second = [item for item in baseline_ids if item]
+    depth = min(len(first), len(second))
+    if not depth:
+        return None
+    seen_first: set[str] = set()
+    seen_second: set[str] = set()
+    overlap = 0
+    weighted = 0.0
+    for position in range(1, depth + 1):
+        a, b = first[position - 1], second[position - 1]
+        if a == b:
+            overlap += 1
+        else:
+            overlap += (a in seen_second) + (b in seen_first)
+        seen_first.add(a)
+        seen_second.add(b)
+        weighted += overlap / position * persistence ** position
+    score = overlap / depth * persistence ** depth + (1 - persistence) / persistence * weighted
+    return round(min(1.0, score) * 100)
+
+
+def bridge_artists(
+    artists: list[dict[str, Any]], *, sample_size: int = 20, limit: int = 4
+) -> list[dict[str, Any]]:
+    """Artists that connect several genre families of the sample."""
+    bridges = []
+    for index, artist in enumerate(artists[:sample_size]):
+        families = artist_families(artist.get("genres") or [])
+        if len(families) >= 2:
+            bridges.append((-len(families), index, artist.get("name", "Artista"), families))
+    bridges.sort()
+    return [
+        {"name": name, "families": families[:3], "rank": index + 1}
+        for _, index, name, families in bridges[:limit]
+    ]
+
+
+def family_combinations(
+    artists: list[dict[str, Any]], *, sample_size: int = 20, limit: int = 3
+) -> list[dict[str, Any]]:
+    """Family pairs that appear together inside the same artists."""
+    pairs: Counter[tuple[str, str]] = Counter()
+    examples: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for artist in artists[:sample_size]:
+        families = sorted(artist_families(artist.get("genres") or []))
+        for i, first in enumerate(families):
+            for second in families[i + 1:]:
+                pairs[(first, second)] += 1
+                examples[(first, second)].append(artist.get("name", "Artista"))
+    return [
+        {"families": list(pair), "artistCount": count, "artists": examples[pair][:3]}
+        for pair, count in pairs.most_common(limit)
+    ]

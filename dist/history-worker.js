@@ -44,7 +44,7 @@ self.onmessage = ({ data }) => {
         catch { meta.warning = "El historial se quitó de esta visita. El navegador bloqueó el almacenamiento: no pudimos comprobar el borrado de una copia anterior."; }
       }
       const analysis = ["import", "restore", "analyze"].includes(data.action) && entries.length
-        ? FrecuenciaHistory.aggregateHistory(entries, data.range || "all", data.options || {}) : null;
+        ? FrecuenciaHistory.aggregateHistory(entries, data.range || "all", { timeZone: "local", ...(data.options || {}) }) : null;
       postMessage({ id: data.id, analysis, ...meta });
     } catch (error) { postMessage({ id: data.id, error: error.message || "No se pudo procesar el historial." }); }
   });

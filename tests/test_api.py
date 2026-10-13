@@ -36,7 +36,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
 
     def test_full_insights_contract_and_cache(self):
-        with patch.object(main, "spotify_client", return_value=FakeSpotify()), patch.object(main, "enrich_artist_genres"):
+        with patch.object(main, "spotify_client", return_value=FakeSpotify()), patch.object(main, "enrich_artist_genres", return_value=(True, {})):
             response = self.client.get("/api/insights?range=medium_term")
             self.assertEqual(response.status_code, 200)
             payload = response.json()
@@ -46,11 +46,20 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(self.client.get("/api/insights?range=medium_term").headers["X-Frecuencia-Cache"], "HIT")
 
     def test_genre_outage_does_not_poison_cache(self):
-        artists = {"short_term": [{"name": f"A{i}", "genres": []} for i in range(20)]}
-        with patch.object(main, "musicbrainz_genres", return_value={}) as query, patch.object(main, "cached_artist_genres", return_value=None), patch.object(main, "cache_artist_genres") as save:
-            main.enrich_artist_genres(artists)
-        self.assertEqual(len(query.call_args.args[0]), 20)
+        artists = {"short_term": [{"id": f"id{i}", "name": f"A{i}", "genres": []} for i in range(20)]}
+        with patch.object(main, "musicbrainz_get", side_effect=main.MusicBrainzUnavailable("down")), patch.object(main, "cache_genre_record") as save:
+            complete, index = main.enrich_artist_genres(artists)
+        self.assertFalse(complete)
         save.assert_not_called()
+        self.assertTrue(all(artist["genres"] == [] for artist in artists["short_term"]))
+
+    def test_partial_genre_payload_is_cached_briefly(self):
+        with patch.object(main, "spotify_client", return_value=FakeSpotify()), patch.object(main, "enrich_artist_genres", return_value=(False, {})):
+            self.assertEqual(self.client.get("/api/insights").status_code, 200)
+        with main.open_database() as connection:
+            expires_at = connection.execute("SELECT MAX(expires_at) FROM spotify_insights").fetchone()[0]
+        import time
+        self.assertLessEqual(expires_at - time.time(), main.PARTIAL_INSIGHTS_TTL_SECONDS + 1)
 
     def test_homonyms_are_not_guessed(self):
         import json

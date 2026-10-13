@@ -8,11 +8,14 @@ Aplicación web pública para que cada usuario conecte Spotify y vea sus artista
 - Nombre visible y foto de perfil junto al cierre de sesión.
 - Afinidad musical para 4 semanas, 6 meses y aproximadamente 1 año.
 - Top 50 en vivo de artistas y canciones, el máximo que entrega la API por período.
-- Géneros verificados con el dato de Spotify y respaldo de MusicBrainz cuando Spotify devuelve el campo vacío.
+- Géneros verificados: Spotify cuando los entrega y MusicBrainz vinculado al ID exacto de Spotify de cada artista, con respaldo por nombre sin homónimos.
+- Familias de géneros (por ejemplo «Urbano latino», «Cumbia y tropical», «Tango y folklore») sobre la lista oficial de 2215 géneros de MusicBrainz, incluidas escenas locales como cuarteto, RKT o trap argentino.
+- Evolución del gusto: cambio de mezcla (distancia de Jensen-Shannon), estabilidad de rankings (rank-biased overlap), familias que suben y bajan, artistas puente y comparación entre los géneros de tus artistas y los de tus canciones.
 - Importador privado de ZIP y JSON de Spotify, con procesamiento en un Web Worker y verificación de integridad del ZIP.
 - Top 1000 ordenable por reproducciones o tiempo, búsqueda en todo el catálogo importado y eliminación conservadora de duplicados.
 - Guardado local opcional en IndexedDB, restauración al recargar y borrado desde **Quitar historial**.
-- Hábitos: horarios UTC, días activos, rachas, diversidad efectiva de artistas, concentración del Top 5, saltos, shuffle, offline y plataformas.
+- Hábitos en la zona horaria del dispositivo: mapa de calor día × hora, días activos, rachas, sesiones, récord de repeticiones en un día, exploración de artistas nuevos, diversidad efectiva, concentración del Top 5, saltos, shuffle, offline y plataformas.
+- Biografía musical: tus eras (meses seguidos con el mismo artista #1), tu canción y tu artista de cada año, artistas nuevos por año, joyas olvidadas, artistas que te acompañan hace años y canciones que más salteás.
 - Búsqueda y filtros de 4 semanas, 6 meses, 1 año o todo el historial importado.
 - Comparación concreta del Top 20: artistas repetidos, que entraron y que salieron, con sus nombres.
 - Métricas de década dominante, duración media, contenido explícito, colaboraciones, álbumes, amplitud temporal y artistas acreditados.
@@ -28,7 +31,18 @@ Aplicación web pública para que cada usuario conecte Spotify y vea sus artista
 
 Frecuencia consulta las primeras 50 canciones y 50 artistas favoritos por cada período. Ese ranking expresa afinidad y no incluye el número personal de reproducciones. Frecuencia no inventa ese dato.
 
-La presencia de géneros se calcula sobre los primeros 20 artistas y muestra la cobertura, cantidad y nombres de artistas asociados. Si Spotify no devuelve géneros, Frecuencia intenta completar esas ausencias con etiquetas comunitarias de [MusicBrainz](https://musicbrainz.org/doc/MusicBrainz_API), mediante coincidencia de nombre normalizado. Se omiten homónimos detectados: esta correspondencia no garantiza identidad cuando la búsqueda no devuelve todos los candidatos. Las consultas se hacen en lotes con regulación local y compartida mediante Redis. Los fallos temporales no se guardan como ausencia de géneros. MusicBrainz tiene condiciones específicas para uso comercial; revisar sus términos y capacidad antes de depender de ella.
+La presencia de géneros se calcula sobre los primeros 20 artistas y muestra la cobertura, cantidad y nombres de artistas asociados.
+
+### De dónde salen los géneros
+
+Desde febrero de 2026, Spotify ya no incluye `genres` en `GET /me/top/artists` para apps en Development Mode y quitó la consulta de varios artistas a la vez. Frecuencia resuelve cada artista con esta cadena de evidencia, de mayor a menor confianza:
+
+1. **Géneros presentes en la respuesta de Spotify**, si alguna vez vuelven.
+2. **`GET /artists/{id}` de Spotify**, de a un artista y hasta 10 por visita. Se prueba una vez: si la respuesta no trae géneros, se recuerda durante un día y no se gastan más llamadas.
+3. **[MusicBrainz](https://musicbrainz.org/doc/MusicBrainz_API) por ID exacto**: MusicBrainz guarda el enlace de Spotify de cada artista. Una sola consulta resuelve hasta 25 IDs de Spotify a sus IDs de MusicBrainz y otra trae sus etiquetas. La identidad es exacta: los homónimos no se confunden.
+4. **MusicBrainz por nombre**, sólo para artistas sin ese enlace, y únicamente si el nombre no tiene homónimos.
+
+Las etiquetas comunitarias se filtran con la lista oficial de géneros de MusicBrainz (`backend/musicbrainz_genres.txt`) y necesitan al menos un tercio de los votos de la etiqueta principal, lo que descarta votos sueltos. Los resultados se guardan por ID de artista durante 30 días (3 días si no hay géneros) y se comparten entre usuarios. Cada petición tiene un presupuesto de tiempo (`GENRE_LOOKUP_BUDGET_SECONDS`: 12 s por defecto, 6 s en Vercel): lo que no alcanza se completa en la visita siguiente, y mientras tanto la respuesta se guarda en caché sólo 90 segundos. Los fallos temporales nunca se guardan como ausencia de géneros. Las consultas a MusicBrainz respetan una por segundo, con regulación compartida mediante Redis. MusicBrainz tiene condiciones específicas para uso comercial; revisar sus términos y capacidad antes de depender de ella.
 
 Para obtener cantidades calculadas desde los registros, el usuario puede pedir su **Historial ampliado de reproducciones** desde [Privacidad de la cuenta de Spotify](https://www.spotify.com/account/privacy/) e importar el ZIP directamente, o elegir juntos los archivos `Streaming_History_Audio_*.json`. El análisis:
 
@@ -41,7 +55,8 @@ Para obtener cantidades calculadas desde los registros, el usuario puede pedir s
 - busca en todas las canciones antes de mostrar hasta 1000 resultados;
 - interpreta campos de comportamiento ausentes como desconocidos, nunca como falsos;
 - aplica filtros hasta la última fecha del archivo y excluye registros sin fecha de períodos acotados;
-- muestra horas y rachas en UTC, usando la fecha de finalización del evento;
+- muestra horas, días y rachas en la zona horaria del dispositivo, usando la fecha de finalización del evento;
+- considera que una sesión termina tras 30 minutos sin música;
 - desaparece al recargar salvo que el usuario elija **Recordar mi historial en este navegador**;
 - permite borrar también la copia persistida con **Quitar historial**. El historial guardado pertenece al navegador, no está vinculado a la cuenta OAuth: no activar en dispositivos compartidos.
 
@@ -137,7 +152,7 @@ DATABASE_PATH=/ruta-persistente/frecuencia.db
 
 Las aplicaciones nuevas comienzan en Development Mode. En ese modo solamente pueden iniciar sesión hasta 5 usuarios agregados previamente al allowlist del dashboard y el propietario de la app necesita Spotify Premium.
 
-Para permitir el login de cualquier usuario necesitás solicitar **Extended Quota Mode** en Spotify. Antes de solicitarlo conviene tener dominio definitivo, política de privacidad, términos, contacto y una explicación clara de qué datos se leen y por cuánto tiempo se conservan.
+Para permitir el login de cualquier usuario hace falta **Extended Quota Mode**. Desde el 15 de mayo de 2025 Spotify sólo lo otorga a organizaciones registradas, con un servicio lanzado y al menos 250.000 usuarios activos mensuales ([criterios](https://developer.spotify.com/documentation/web-api/concepts/quota-modes)). Para un proyecto individual, el login con Spotify queda limitado a los usuarios del allowlist. El importador de historial no depende de OAuth: cualquier persona puede usarlo con el ZIP de su cuenta.
 
 ## Privacidad y seguridad
 

@@ -28,12 +28,19 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from backend.analytics import (
     average_track_duration,
+    bridge_artists,
     explicit_share,
+    family_breakdown,
+    family_combinations,
     favorite_decade,
     genre_breakdown,
+    rank_biased_overlap,
     ranked_track_statistics,
     ranking_comparison,
+    taste_shift,
+    track_family_breakdown,
 )
+from backend.genres import canonical_genre, genres_from_tags
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,12 +75,22 @@ INSIGHTS_CACHE_TTL_SECONDS = int(
 )
 TOKEN_TTL_SECONDS = 60 * 60 * 24 * 180
 GENRE_CACHE_TTL_SECONDS = 60 * 60 * 24 * 30
-CACHE_SCHEMA_VERSION = "v4"
+NEGATIVE_GENRE_TTL_SECONDS = 60 * 60 * 24 * 3
+GENRE_CACHE_VERSION = "v5"
+# Serverless functions may stop at 10 s on small plans: keep the genre lookup
+# well inside that and finish the rest on the next visit.
+GENRE_LOOKUP_BUDGET_SECONDS = float(
+    os.getenv("GENRE_LOOKUP_BUDGET_SECONDS", "6" if IS_VERCEL else "12")
+)
+PARTIAL_INSIGHTS_TTL_SECONDS = 90
+SPOTIFY_ARTIST_LOOKUPS_PER_REQUEST = 10
+MUSICBRAINZ_BATCH_SIZE = 25
+CACHE_SCHEMA_VERSION = "v5"
 SCOPES = "user-top-read user-read-private"
-MUSICBRAINZ_API = "https://musicbrainz.org/ws/2/artist/"
+MUSICBRAINZ_ROOT = "https://musicbrainz.org/ws/2/"
 MUSICBRAINZ_USER_AGENT = os.getenv(
     "MUSICBRAINZ_USER_AGENT",
-    "Frecuencia/0.5 (https://github.com/AlanMPrnt/FRECUENCIA)",
+    "Frecuencia/0.7 (https://github.com/AlanMPrnt/FRECUENCIA)",
 )
 musicbrainz_lock = threading.Lock()
 musicbrainz_last_request = 0.0
@@ -87,21 +104,21 @@ if IS_PRODUCTION:
     if not REDIRECT_URI:
         missing.append("SPOTIPY_REDIRECT_URI")
     if len(SESSION_SECRET) < 32 or SESSION_SECRET == "change-me-in-development":
-        missing.append("SESSION_SECRET (mínimo 32 caracteres)")
+        missing.append("SESSION_SECRET (mÃ­nimo 32 caracteres)")
     if REDIRECT_URI and not REDIRECT_URI.startswith("https://"):
-        missing.append("SPOTIPY_REDIRECT_URI debe usar HTTPS en producción")
+        missing.append("SPOTIPY_REDIRECT_URI debe usar HTTPS en producciÃ³n")
     if missing:
         raise RuntimeError(
-            "Configuración de producción incompleta: " + ", ".join(missing)
+            "ConfiguraciÃ³n de producciÃ³n incompleta: " + ", ".join(missing)
         )
 
 RANGE_COPY = {
-    "short_term": ("Ahora", "Lo que más te definió durante las últimas 4 semanas."),
+    "short_term": ("Ahora", "Lo que mÃ¡s te definiÃ³ durante las Ãºltimas 4 semanas."),
     "medium_term": (
-        "Últimos 6 meses",
-        "La música que sostuvo tu ritmo durante los últimos 6 meses.",
+        "Ãšltimos 6 meses",
+        "La mÃºsica que sostuvo tu ritmo durante los Ãºltimos 6 meses.",
     ),
-    "long_term": ("Último año", "Los nombres y sonidos que construyeron tu último año."),
+    "long_term": ("Ãšltimo aÃ±o", "Los nombres y sonidos que construyeron tu Ãºltimo aÃ±o."),
 }
 
 COLOR_PALETTE = [
@@ -274,10 +291,16 @@ def cache_insights(
 ) -> None:
     cache_range = f"{CACHE_SCHEMA_VERSION}:{time_range}"
     serialized = json.dumps(payload, ensure_ascii=False)
+    # Incomplete genre coverage is cached briefly, so the next visit can fill it.
+    ttl = (
+        INSIGHTS_CACHE_TTL_SECONDS
+        if payload.get("genreLookupComplete", True)
+        else min(INSIGHTS_CACHE_TTL_SECONDS, PARTIAL_INSIGHTS_TTL_SECONDS)
+    )
     if redis_client is not None:
         redis_client.setex(
             f"frecuencia:insights:{CACHE_SCHEMA_VERSION}:{session_id}:{time_range}",
-            INSIGHTS_CACHE_TTL_SECONDS,
+            ttl,
             serialized,
         )
         return
@@ -295,7 +318,7 @@ def cache_insights(
                 session_id,
                 cache_range,
                 serialized,
-                int(time.time()) + INSIGHTS_CACHE_TTL_SECONDS,
+                int(time.time()) + ttl,
             ),
         )
 
@@ -312,7 +335,7 @@ def oauth_for(request: Request, *, state: str | None = None) -> SpotifyOAuth:
     if not spotify_configured():
         raise HTTPException(
             status_code=503,
-            detail="La conexión con Spotify todavía no está configurada.",
+            detail="La conexiÃ³n con Spotify todavÃ­a no estÃ¡ configurada.",
         )
     return SpotifyOAuth(
         client_id=CLIENT_ID,
@@ -330,83 +353,26 @@ def spotify_client(request: Request) -> spotipy.Spotify:
     oauth = oauth_for(request)
     token_info = oauth.cache_handler.get_cached_token()
     if not token_info:
-        raise HTTPException(status_code=401, detail="Conectá tu cuenta de Spotify.")
+        raise HTTPException(status_code=401, detail="ConectÃ¡ tu cuenta de Spotify.")
     try:
         token = oauth.validate_token(token_info)
     except spotipy.oauth2.SpotifyOauthError as exc:
         if getattr(exc, "error", None) == "invalid_grant":
             oauth.cache_handler.delete()
-            raise HTTPException(status_code=401, detail="La sesión de Spotify expiró.") from exc
-        raise HTTPException(status_code=503, detail="No pudimos renovar la sesión. Reintentá en un momento.") from exc
+            raise HTTPException(status_code=401, detail="La sesiÃ³n de Spotify expirÃ³.") from exc
+        raise HTTPException(status_code=503, detail="No pudimos renovar la sesiÃ³n. ReintentÃ¡ en un momento.") from exc
     if not token:
         oauth.cache_handler.delete()
-        raise HTTPException(status_code=401, detail="La sesión de Spotify expiró.")
+        raise HTTPException(status_code=401, detail="La sesiÃ³n de Spotify expirÃ³.")
     return spotipy.Spotify(auth_manager=oauth, requests_timeout=10, retries=2)
 
 
-GENRE_ALIASES = {
-    "hip-hop": "hip hop",
-    "hiphop": "hip hop",
-    "synthpop": "synth-pop",
-    "rnb": "R&B",
-    "r&b": "R&B",
-    "rhythm and blues": "R&B",
-    "neo psychedelic": "neo-psychedelia",
-    "neo-psychedelic": "neo-psychedelia",
-    "electronica": "electrónica",
-    "electronic": "electrónica",
-    "latin trap": "trap latino",
-    "argentine rock": "rock argentino",
-    "argentinian rock": "rock argentino",
-}
-GENRE_KEYWORDS = (
-    "ambient",
-    "alternative",
-    "art pop",
-    "blues",
-    "classical",
-    "cumbia",
-    "dance",
-    "disco",
-    "dream pop",
-    "electro",
-    "emo",
-    "experimental",
-    "folk",
-    "funk",
-    "garage",
-    "gospel",
-    "grunge",
-    "hardcore",
-    "hip hop",
-    "hip-hop",
-    "house",
-    "indie",
-    "jazz",
-    "latin",
-    "metal",
-    "neo-psy",
-    "new wave",
-    "pop",
-    "post-punk",
-    "post-rock",
-    "psychedelic",
-    "punk",
-    "rap",
-    "reggae",
-    "reggaeton",
-    "rock",
-    "salsa",
-    "shoegaze",
-    "ska",
-    "soul",
-    "synth",
-    "tango",
-    "techno",
-    "trap",
-    "trip hop",
-    "urbano",
-)
+class MusicBrainzUnavailable(Exception):
+    """MusicBrainz could not answer now. Never cached as "artist has no genres"."""
+
+
+class GenreBudgetExceeded(Exception):
+    """The request spent its lookup budget; the rest is resolved on a later visit."""
 
 
 def normalize_artist_key(value: str) -> str:
@@ -417,44 +383,36 @@ def normalize_artist_key(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", without_accents.casefold()).strip()
 
 
-def canonical_genre(value: str) -> str | None:
-    genre = re.sub(r"\s+", " ", value.strip().casefold())
-    if not genre:
-        return None
-    if genre in GENRE_ALIASES:
-        return GENRE_ALIASES[genre]
-    if not any(keyword in genre for keyword in GENRE_KEYWORDS):
-        return None
-    return genre
-
-
-def cached_artist_genres(artist_name: str) -> list[str] | None:
-    artist_key = normalize_artist_key(artist_name)
+def cached_genre_record(key: str) -> dict[str, Any] | None:
+    cache_key = f"{GENRE_CACHE_VERSION}:{key}"
     if redis_client is not None:
-        value = redis_client.get(f"frecuencia:genres:v4:{artist_key}")
-        return json.loads(value) if value is not None else None
+        value = redis_client.get(f"frecuencia:genres:{cache_key}")
+    else:
+        with open_database() as connection:
+            row = connection.execute(
+                "SELECT genres FROM artist_genres WHERE artist_key = ? AND expires_at > ?",
+                (cache_key, int(time.time())),
+            ).fetchone()
+        value = row[0] if row else None
+    if value is None:
+        return None
+    try:
+        record = json.loads(value)
+    except json.JSONDecodeError:
+        return None
+    return record if isinstance(record, dict) else None
 
-    now = int(time.time())
-    with open_database() as connection:
-        row = connection.execute(
-            "SELECT genres FROM artist_genres WHERE artist_key = ? AND expires_at > ?",
-            (f"v4:{artist_key}", now),
-        ).fetchone()
-    return json.loads(row[0]) if row else None
 
-
-def cache_artist_genres(artist_name: str, genres: list[str]) -> None:
-    artist_key = normalize_artist_key(artist_name)
-    serialized = json.dumps(genres, ensure_ascii=False)
-    ttl = GENRE_CACHE_TTL_SECONDS if genres else 60 * 60 * 24
+def cache_genre_record(
+    key: str, record: dict[str, Any], ttl: int | None = None
+) -> None:
+    cache_key = f"{GENRE_CACHE_VERSION}:{key}"
+    if ttl is None:
+        ttl = GENRE_CACHE_TTL_SECONDS if record.get("genres") else NEGATIVE_GENRE_TTL_SECONDS
+    serialized = json.dumps(record, ensure_ascii=False)
     if redis_client is not None:
-        redis_client.setex(
-            f"frecuencia:genres:v4:{artist_key}",
-            ttl,
-            serialized,
-        )
+        redis_client.setex(f"frecuencia:genres:{cache_key}", ttl, serialized)
         return
-
     with open_database() as connection:
         connection.execute(
             """
@@ -464,42 +422,94 @@ def cache_artist_genres(artist_name: str, genres: list[str]) -> None:
                 genres = excluded.genres,
                 expires_at = excluded.expires_at
             """,
-            (
-                f"v4:{artist_key}",
-                serialized,
-                int(time.time()) + ttl,
-            ),
+            (cache_key, serialized, int(time.time()) + ttl),
         )
 
 
-def musicbrainz_genres(artist_names: list[str]) -> dict[str, list[str]]:
+def musicbrainz_get(path: str, params: list[tuple[str, str]]) -> dict[str, Any] | None:
+    """Throttled GET to MusicBrainz. Returns None on 404."""
     global musicbrainz_last_request
-    if not artist_names:
-        return {}
-    clauses = []
-    for name in artist_names[:24]:
-        escaped = name.replace("\\", "\\\\").replace('"', '\\"')
-        clauses.append(f'artist:"{escaped}"')
-    query = " OR ".join(clauses)
-    url = f"{MUSICBRAINZ_API}?{urlencode({'query': query, 'fmt': 'json', 'limit': 100})}"
-    request = URLRequest(url, headers={"User-Agent": MUSICBRAINZ_USER_AGENT})
-    # Share the throttle across instances when Redis is configured. On contention
-    # leave coverage incomplete and retry later, rather than caching a false miss.
+    url = f"{MUSICBRAINZ_ROOT}{path}?{urlencode([*params, ('fmt', 'json')])}"
+    request = URLRequest(
+        url,
+        headers={"User-Agent": MUSICBRAINZ_USER_AGENT, "Accept": "application/json"},
+    )
+    # MusicBrainz allows one request per second. Share the slot across
+    # instances when Redis is configured.
     with musicbrainz_lock:
         wait = max(0.0, 1.1 - (time.monotonic() - musicbrainz_last_request))
         if wait:
             time.sleep(wait)
-        if redis_client is not None and not redis_client.set("frecuencia:musicbrainz:rate", "1", nx=True, px=1100):
-            return {}
+        if redis_client is not None:
+            for _ in range(4):
+                if redis_client.set("frecuencia:musicbrainz:rate", "1", nx=True, px=1100):
+                    break
+                time.sleep(0.4)
+            else:
+                raise MusicBrainzUnavailable("rate slot busy")
         musicbrainz_last_request = time.monotonic()
     try:
-        with urlopen(request, timeout=8) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError):
+        with urlopen(request, timeout=5) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        if exc.code == 404:
+            return None
+        raise MusicBrainzUnavailable(str(exc)) from exc
+    except (URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+        raise MusicBrainzUnavailable(str(exc)) from exc
+
+
+def musicbrainz_ids_for_spotify(spotify_ids: list[str]) -> dict[str, str]:
+    """Resolve Spotify artist IDs to MusicBrainz IDs through MusicBrainz's own
+    Spotify links. Identity is exact, so homonyms cannot be confused."""
+    resources = {f"https://open.spotify.com/artist/{item}": item for item in spotify_ids}
+    payload = musicbrainz_get(
+        "url", [*(("resource", resource) for resource in resources), ("inc", "artist-rels")]
+    )
+    if payload is None:
+        return {}
+    url_items = payload["urls"] if "urls" in payload else [payload]
+    matches: dict[str, str] = {}
+    for item in url_items or []:
+        spotify_id = resources.get(str(item.get("resource") or ""))
+        artist_ids = {
+            relation["artist"]["id"]
+            for relation in item.get("relations") or []
+            if (relation.get("artist") or {}).get("id")
+        }
+        if spotify_id and len(artist_ids) == 1:
+            matches[spotify_id] = artist_ids.pop()
+    return matches
+
+
+def musicbrainz_genres_for_ids(mbids: list[str]) -> dict[str, list[str]]:
+    wanted = set(mbids)
+    query = " OR ".join(f"arid:{mbid}" for mbid in mbids)
+    payload = musicbrainz_get("artist", [("query", query), ("limit", "100")]) or {}
+    return {
+        artist["id"]: genres_from_tags(artist.get("tags") or [])
+        for artist in payload.get("artists") or []
+        if artist.get("id") in wanted
+    }
+
+
+def musicbrainz_genres(artist_names: list[str]) -> dict[str, list[str]]:
+    """Name search, used only for artists without a Spotify link in MusicBrainz."""
+    if not artist_names:
+        return {}
+    queried_names = artist_names[:24]
+    clauses = []
+    for name in queried_names:
+        escaped = name.replace("\\", "\\\\").replace('"', '\\"')
+        clauses.append(f'artist:"{escaped}"')
+    try:
+        payload = musicbrainz_get(
+            "artist", [("query", " OR ".join(clauses)), ("limit", "100")]
+        ) or {}
+    except MusicBrainzUnavailable:
         return {}
 
     candidates: dict[str, list[dict[str, Any]]] = {}
-    queried_names = artist_names[:24]
     requested_keys = {normalize_artist_key(name) for name in queried_names}
     for artist in payload.get("artists") or []:
         key = normalize_artist_key(str(artist.get("name") or ""))
@@ -510,67 +520,154 @@ def musicbrainz_genres(artist_names: list[str]) -> dict[str, list[str]]:
     for name in queried_names:
         key = normalize_artist_key(name)
         matches = candidates.get(key) or []
-        if not matches:
-            results[key] = []
-            continue
         # A name alone cannot resolve homonyms. Do not assign the most popular
         # namesake's genres to a different Spotify artist.
-        if len(matches) != 1:
-            results[key] = []
-            continue
-        best = matches[0]
-        raw_tags = [*(best.get("genres") or []), *(best.get("tags") or [])]
-        raw_tags.sort(key=lambda tag: int(tag.get("count") or 0), reverse=True)
-        verified = []
-        for tag in raw_tags:
-            genre = canonical_genre(str(tag.get("name") or ""))
-            if genre and genre.casefold() not in {item.casefold() for item in verified}:
-                verified.append(genre)
-            if len(verified) == 4:
-                break
-        results[key] = verified
+        results[key] = genres_from_tags(matches[0].get("tags") or []) if len(matches) == 1 else []
     return results
 
 
+def spotify_artist_genres(
+    sp: spotipy.Spotify, spotify_ids: list[str], deadline: float
+) -> dict[str, list[str]]:
+    """GET /artists/{id} still returned genres for some apps after the February
+    2026 change. Probe it and stop spending calls once it proves empty."""
+    flag = cached_genre_record("spotify-artist-endpoint")
+    if flag and flag.get("available") is False:
+        return {}
+    found: dict[str, list[str]] = {}
+    lookups = 0
+    for spotify_id in spotify_ids[:SPOTIFY_ARTIST_LOOKUPS_PER_REQUEST]:
+        if time.monotonic() > deadline:
+            break
+        try:
+            artist = sp.artist(spotify_id)
+        except Exception:
+            break  # Rate limits and outages leave the work for MusicBrainz.
+        lookups += 1
+        if not isinstance(artist, dict) or "genres" not in artist:
+            cache_genre_record("spotify-artist-endpoint", {"available": False}, ttl=60 * 60 * 24)
+            break
+        genres = [genre for genre in map(canonical_genre, artist.get("genres") or []) if genre]
+        if genres:
+            found[spotify_id] = genres[:5]
+        elif lookups >= 8 and not found:
+            cache_genre_record("spotify-artist-endpoint", {"available": False}, ttl=60 * 60 * 24)
+            break
+    return found
+
+
 def enrich_artist_genres(
-    artists_by_range: dict[str, list[dict[str, Any]]]
-) -> None:
-    candidates: dict[str, str] = {}
+    artists_by_range: dict[str, list[dict[str, Any]]],
+    tracks_by_range: dict[str, list[dict[str, Any]]] | None = None,
+    sp: spotipy.Spotify | None = None,
+) -> tuple[bool, dict[str, list[str]]]:
+    """Attach verified genres to artists.
+
+    Order of evidence: genres already in the Spotify payload, Spotify's
+    single-artist endpoint, MusicBrainz linked to the exact Spotify ID and,
+    last, MusicBrainz by unambiguous name. Returns whether every lookup
+    finished and the genres per Spotify artist ID, including track artists.
+    """
+    deadline = time.monotonic() + GENRE_LOOKUP_BUDGET_SECONDS
+    names: dict[str, str] = {}
+    priority: set[str] = set()
+    records: dict[str, dict[str, Any]] = {}
+
+    def remember(artist: dict[str, Any], *, important: bool = False) -> None:
+        spotify_id = str(artist.get("id") or "")
+        name = str(artist.get("name") or "").strip()
+        if not spotify_id or not name:
+            return
+        names.setdefault(spotify_id, name)
+        if important:
+            priority.add(spotify_id)
+        payload_genres = [g for g in map(canonical_genre, artist.get("genres") or []) if g]
+        if payload_genres and spotify_id not in records:
+            records[spotify_id] = {"genres": payload_genres[:5], "source": "Spotify"}
+
     for artists in artists_by_range.values():
         for artist in artists[:20]:
-            name = str(artist.get("name") or "").strip()
-            if name and not artist.get("genres"):
-                candidates.setdefault(normalize_artist_key(name), name)
+            remember(artist, important=True)
+    for artists in artists_by_range.values():
+        for artist in artists[20:]:
+            remember(artist)
+    for tracks in (tracks_by_range or {}).values():
+        for track in tracks:
+            if track.get("artists"):
+                remember(track["artists"][0])
 
-    unresolved = []
-    genre_map: dict[str, list[str]] = {}
-    for key, name in candidates.items():
-        cached = cached_artist_genres(name)
+    pending = []
+    for spotify_id in names:
+        if spotify_id in records:
+            continue
+        cached = cached_genre_record(f"artist:{spotify_id}")
         if cached is None:
-            unresolved.append(name)
+            pending.append(spotify_id)
         else:
-            genre_map[key] = cached
+            records[spotify_id] = cached
+    # Most visible artists first, so a cut-short request still fills the Top 20.
+    pending.sort(key=lambda item: item not in priority)
 
-    for offset in range(0, len(unresolved), 20):
-        queried_names = unresolved[offset:offset + 20]
-        discovered = musicbrainz_genres(queried_names)
-        for name in queried_names:
-            key = normalize_artist_key(name)
-            if key not in discovered:
-                continue  # An outage is not evidence that an artist has no genres.
-            genres = discovered[key]
-            genre_map[key] = genres
-            cache_artist_genres(name, genres)
+    def store(spotify_id: str, record: dict[str, Any]) -> None:
+        records[spotify_id] = record
+        cache_genre_record(f"artist:{spotify_id}", record)
+
+    if pending and sp is not None:
+        important = [item for item in pending if item in priority]
+        for spotify_id, genres in spotify_artist_genres(sp, important, deadline).items():
+            store(spotify_id, {"genres": genres, "source": "Spotify"})
+        pending = [item for item in pending if item not in records]
+
+    complete = True
+    try:
+        unlinked: list[str] = []
+        for offset in range(0, len(pending), MUSICBRAINZ_BATCH_SIZE):
+            if time.monotonic() > deadline:
+                raise GenreBudgetExceeded
+            batch = pending[offset:offset + MUSICBRAINZ_BATCH_SIZE]
+            mbids = musicbrainz_ids_for_spotify(batch)
+            unlinked.extend(item for item in batch if item not in mbids)
+            if not mbids:
+                continue
+            if time.monotonic() > deadline:
+                raise GenreBudgetExceeded
+            genres_by_mbid = musicbrainz_genres_for_ids(sorted(set(mbids.values())))
+            for spotify_id, mbid in mbids.items():
+                genres = genres_by_mbid.get(mbid, [])
+                store(spotify_id, {
+                    "genres": genres,
+                    "source": "MusicBrainz" if genres else None,
+                    "mbid": mbid,
+                })
+
+        for offset in range(0, len(unlinked), 20):
+            if time.monotonic() > deadline:
+                raise GenreBudgetExceeded
+            batch = unlinked[offset:offset + 20]
+            discovered = musicbrainz_genres([names[item] for item in batch])
+            for spotify_id in batch:
+                key = normalize_artist_key(names[spotify_id])
+                if key not in discovered:
+                    complete = False  # An outage is not evidence that an artist has no genres.
+                    continue
+                genres = discovered[key]
+                store(spotify_id, {
+                    "genres": genres,
+                    "source": "MusicBrainz por nombre" if genres else None,
+                })
+    except (MusicBrainzUnavailable, GenreBudgetExceeded):
+        complete = False
 
     for artists in artists_by_range.values():
         for artist in artists:
-            if artist.get("genres"):
-                artist["_genre_source"] = "Spotify"
-                continue
-            genres = genre_map.get(normalize_artist_key(str(artist.get("name") or "")), [])
+            record = records.get(str(artist.get("id") or "")) or {}
+            genres = list(record.get("genres") or [])
             artist["genres"] = genres
-            if genres:
-                artist["_genre_source"] = "MusicBrainz"
+            artist["_genre_source"] = record.get("source") if genres else None
+    genre_index = {
+        spotify_id: list(record.get("genres") or []) for spotify_id, record in records.items()
+    }
+    return complete and all(item in records for item in names), genre_index
 
 
 def image_url(item: dict[str, Any]) -> str | None:
@@ -580,7 +677,7 @@ def image_url(item: dict[str, Any]) -> str | None:
 
 def artist_genre(artist: dict[str, Any]) -> str:
     genres = artist.get("genres") or []
-    return genres[0] if genres else "género no verificado"
+    return genres[0] if genres else "gÃ©nero no verificado"
 
 
 def rank_movement(
@@ -594,10 +691,10 @@ def rank_movement(
 
 def genre_profile(genres: list[dict[str, Any]]) -> str:
     if not genres:
-        return "Géneros por verificar"
+        return "GÃ©neros por verificar"
     if len(genres) == 1:
         return genres[0]["name"]
-    return f"{genres[0]['name']} × {genres[1]['name']}"
+    return f"{genres[0]['name']} Ã— {genres[1]['name']}"
 
 
 def insight_cards(
@@ -625,24 +722,24 @@ def insight_cards(
         )
         pattern_facts = [
             f"Artistas asociados: {related}.",
-            f"También aparecen: {next_genres}.",
-            "Los géneros describen artistas; no son minutos ni reproducciones.",
+            f"TambiÃ©n aparecen: {next_genres}.",
+            "Los gÃ©neros describen artistas; no son minutos ni reproducciones.",
         ]
     else:
-        pattern_title = "Todavía no hay géneros verificados"
+        pattern_title = "TodavÃ­a no hay gÃ©neros verificados"
         pattern_copy = (
-            "Spotify no entregó categorías y MusicBrainz no pudo completar "
-            "esta selección."
+            "Spotify no entregÃ³ categorÃ­as y MusicBrainz no pudo completar "
+            "esta selecciÃ³n."
         )
         pattern_facts = [
             "No mostramos etiquetas de relleno.",
-            "Probá Actualizar más tarde para volver a consultar la fuente externa.",
+            "ProbÃ¡ Actualizar mÃ¡s tarde para volver a consultar la fuente externa.",
         ]
 
     signature_facts = [
-        f"Década con más canciones: {favorite_decade(tracks)}.",
-        f"Duración media: {average_track_duration(tracks)}.",
-        f"Contenido explícito: {explicit_share(tracks)}% del Top {len(tracks)}.",
+        f"DÃ©cada con mÃ¡s canciones: {favorite_decade(tracks)}.",
+        f"DuraciÃ³n media: {average_track_duration(tracks)}.",
+        f"Contenido explÃ­cito: {explicit_share(tracks)}% del Top {len(tracks)}.",
     ]
     return [
         {
@@ -659,8 +756,8 @@ def insight_cards(
             "facts": pattern_facts,
         },
         {
-            "title": "Tu selección, sin adjetivos inventados",
-            "copy": "Tres medidas observables dentro de las canciones que Spotify devolvió.",
+            "title": "Tu selecciÃ³n, sin adjetivos inventados",
+            "copy": "Tres medidas observables dentro de las canciones que Spotify devolviÃ³.",
             "facts": signature_facts,
         },
     ]
@@ -676,7 +773,13 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
         tracks_by_range[time_range] = sp.current_user_top_tracks(
             limit=50, time_range=time_range
         ).get("items", [])
-    enrich_artist_genres(artists_by_range)
+    genres_complete, genre_index = enrich_artist_genres(
+        artists_by_range, tracks_by_range, sp
+    )
+    families_by_range = {
+        time_range: family_breakdown(artists)
+        for time_range, artists in artists_by_range.items()
+    }
 
     payloads: dict[str, dict[str, Any]] = {}
     comparison_ranges = {
@@ -697,6 +800,8 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
         comparison = ranking_comparison(artists, baseline_artists)
         comparison["label"] = RANGE_COPY[comparison_range][0]
         genres = genre_breakdown(artists)
+        families = families_by_range[selected_range]
+        track_families = track_family_breakdown(tracks, genre_index)
         data_science = ranked_track_statistics(
             tracks,
             genres,
@@ -736,14 +841,14 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
             release_date = str(album.get("release_date") or "")
             track_payload.append(
                 {
-                    "name": track.get("name", "Canción"),
+                    "name": track.get("name", "CanciÃ³n"),
                     "artist": ", ".join(
                         artist.get("name", "")
                         for artist in track.get("artists") or []
                     ),
                     "image": image_url(album),
                     "url": (track.get("external_urls") or {}).get("spotify"),
-                    "album": album.get("name") or "Álbum sin identificar",
+                    "album": album.get("name") or "Ãlbum sin identificar",
                     "releaseYear": (
                         release_date[:4] if release_date[:4].isdigit() else None
                     ),
@@ -770,8 +875,8 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
             )
         else:
             genre_insight = (
-                "No encontramos géneros verificables en Spotify ni MusicBrainz. "
-                "No se muestran categorías de relleno."
+                "No encontramos gÃ©neros verificables en Spotify ni MusicBrainz. "
+                "No se muestran categorÃ­as de relleno."
             )
 
         payloads[selected_range] = {
@@ -790,7 +895,21 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
             "genreCoveredArtists": sum(bool(artist.get("genres")) for artist in artists[:genre_sample_size]),
             "genreSource": genre_source,
             "genreInsight": genre_insight,
+            "genreLookupComplete": genres_complete,
             "genres": genres,
+            "genreFamilies": families,
+            "trackGenreFamilies": track_families,
+            "tasteShift": taste_shift(families, families_by_range[comparison_range]),
+            "rankStability": rank_biased_overlap(
+                [str(artist.get("id") or "") for artist in artists],
+                [str(artist.get("id") or "") for artist in baseline_artists],
+            ),
+            "trackRankStability": rank_biased_overlap(
+                [str(track.get("id") or "") for track in tracks],
+                [str(track.get("id") or "") for track in tracks_by_range[comparison_range]],
+            ),
+            "bridges": bridge_artists(artists),
+            "genreCombos": family_combinations(artists),
             "dataScience": data_science,
             "artists": artist_payload,
             "tracks": track_payload,
@@ -808,7 +927,7 @@ def build_all_insights(sp: spotipy.Spotify) -> dict[str, dict[str, Any]]:
 app = FastAPI(
     title="Frecuencia API",
     description="Backend de Tu ADN musical, construido con Spotipy.",
-    version="0.6.0",
+    version="0.7.0",
     docs_url=None if IS_PRODUCTION else "/api/docs",
     redoc_url=None,
 )
@@ -871,7 +990,7 @@ def auth_status(request: Request, response: Response) -> dict[str, Any]:
             oauth.cache_handler.delete()
             authenticated = False
         else:
-            raise HTTPException(status_code=503, detail="Spotify no pudo validar la sesión. Reintentá.") from exc
+            raise HTTPException(status_code=503, detail="Spotify no pudo validar la sesiÃ³n. ReintentÃ¡.") from exc
     profile = None
     if authenticated:
         try:
@@ -944,7 +1063,7 @@ def callback(
 @app.post("/auth/logout")
 def logout(request: Request) -> RedirectResponse:
     if request.headers.get("X-Frecuencia-Action") != "logout":
-        raise HTTPException(status_code=403, detail="Solicitud de cierre de sesión inválida.")
+        raise HTTPException(status_code=403, detail="Solicitud de cierre de sesiÃ³n invÃ¡lida.")
     session_id = request.session.get("session_id")
     if session_id:
         token_cache_for(session_id).delete()

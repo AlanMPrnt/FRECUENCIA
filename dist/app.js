@@ -133,6 +133,30 @@ const demoData = {
   }
 };
 
+const demoEvolution = {
+  genreSampleSize: 20,
+  genreCoveredArtists: 18,
+  genreFamilies: [
+    { name: "Indie y alternativo", share: 27, artistCount: 7, examples: ["The Marías", "Phoebe Bridgers"] },
+    { name: "Urbano latino", share: 21, artistCount: 5, examples: ["Bad Bunny", "Dillom"] },
+    { name: "Pop", share: 18, artistCount: 6, examples: ["Rosalía", "Billie Eilish"] },
+    { name: "Rock", share: 14, artistCount: 4, examples: ["Charly García", "Radiohead"] },
+    { name: "R&B y soul", share: 11, artistCount: 3, examples: ["Frank Ocean"] },
+    { name: "Electrónica", share: 9, artistCount: 2, examples: ["Fred again.."] }
+  ],
+  trackGenreFamilies: { coveredTracks: 46, sampleSize: 50, families: [
+    { name: "Urbano latino", share: 30 }, { name: "Indie y alternativo", share: 22 }, { name: "Pop", share: 20 },
+    { name: "Rock", share: 10 }, { name: "R&B y soul", share: 10 }, { name: "Electrónica", share: 8 }
+  ] },
+  tasteShift: { distance: 24, rising: [{ name: "Urbano latino", delta: 9 }, { name: "Electrónica", delta: 4 }], falling: [{ name: "Rock", delta: -8 }, { name: "Folk y cantautor", delta: -5 }] },
+  rankStability: 58,
+  trackRankStability: 31,
+  bridges: [
+    { name: "Rosalía", families: ["Pop", "Urbano latino", "Electrónica"], rank: 2 },
+    { name: "Nathy Peluso", families: ["R&B y soul", "Urbano latino"], rank: 7 }
+  ]
+};
+
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const validRanges = ["short_term", "medium_term", "long_term"];
@@ -243,7 +267,7 @@ function render(data, live = dataIsLive) {
   $("#genre-source-label").innerHTML = `<i class="dot dot-orange"></i> ${escapeHtml(data.genreSource || "Spotify")}`;
   $("#genre-count").textContent = genres.length ? `${data.genreCount || genres.length} géneros` : "sin datos verificados";
   $("#genre-coverage").textContent = live
-    ? `Cobertura: ${data.genreCoveredArtists ?? 0} de ${data.genreSampleSize ?? 0} artistas con género. Las etiquetas de MusicBrainz son comunitarias y la coincidencia se realiza por nombre; pueden ser incompletas.`
+    ? `Cobertura: ${data.genreCoveredArtists ?? 0} de ${data.genreSampleSize ?? 0} artistas con género. MusicBrainz se vincula por el ID exacto de Spotify; sólo si falta ese vínculo se usa un nombre sin homónimos.${data.genreLookupComplete === false ? " Todavía estamos completando géneros: probá Actualizar en un minuto." : ""}`
     : "Datos ilustrativos para explorar el diseño. Conectá Spotify para ver la cobertura de tu cuenta.";
   $("#genre-insight").innerHTML = `<span>01</span> ${escapeHtml(data.genreInsight)}`;
 
@@ -371,6 +395,8 @@ function render(data, live = dataIsLive) {
   updateListToggle($("#artist-toggle"), showAllArtists, artists.length);
   updateListToggle($("#track-toggle"), showAllTracks, tracks.length);
 
+  renderEvolution(live ? data : { ...demoEvolution, comparison }, live);
+
   const insightIds = [["discovery-title", "discovery-copy", "discovery-facts"], ["pattern-title", "pattern-copy", "pattern-facts"], ["signature-title", "signature-copy", "signature-facts"]];
   insightIds.forEach(([titleId, copyId, factsId], index) => {
     const rawInsight = data.insights?.[index];
@@ -381,6 +407,56 @@ function render(data, live = dataIsLive) {
     $(`#${copyId}`).textContent = insight.copy;
     $(`#${factsId}`).innerHTML = (insight.facts || []).map((fact) => `<li>${escapeHtml(fact)}</li>`).join("");
   });
+}
+
+function percentOrDash(value) {
+  return Number.isFinite(value) ? `${value}%` : "—";
+}
+
+function renderEvolution(data, live) {
+  const families = Array.isArray(data.genreFamilies) ? data.genreFamilies : [];
+  const trackFamilies = data.trackGenreFamilies?.families || [];
+  const shift = data.tasteShift;
+  const comparisonLabel = (data.comparison?.label || "otro período").toLocaleLowerCase("es");
+  $("#evolution-sample").textContent = `vs ${comparisonLabel} · ${live ? "Spotify + MusicBrainz" : "Ejemplo"}`;
+  $("#evo-shift").textContent = percentOrDash(shift?.distance);
+  $("#evo-shift-copy").textContent = shift
+    ? shift.distance < 15 ? "Tu mezcla de familias casi no cambió." : shift.distance < 35 ? "Cambio moderado en el reparto de familias." : "Tu mezcla cambió mucho entre los dos períodos."
+    : "Hace falta género en ambos períodos para compararlos.";
+  $("#evo-artist-stability").textContent = percentOrDash(data.rankStability);
+  $("#evo-track-stability").textContent = percentOrDash(data.trackRankStability);
+  $("#evo-coverage").textContent = data.genreSampleSize ? `${data.genreCoveredArtists ?? 0}/${data.genreSampleSize}` : "—";
+  const tracksCovered = data.trackGenreFamilies;
+  $("#evo-coverage-copy").textContent = tracksCovered?.sampleSize
+    ? `Artistas del Top 20 con género. Canciones: ${tracksCovered.coveredTracks} de ${tracksCovered.sampleSize}.`
+    : "Artistas del Top 20 con género verificado.";
+
+  const trackShare = new Map(trackFamilies.map((item) => [item.name, item.share]));
+  const artistShare = new Map(families.map((item) => [item.name, item.share]));
+  const names = [...new Set([...families.map((item) => item.name), ...trackFamilies.map((item) => item.name)])].slice(0, 8);
+  const peak = Math.max(1, ...names.map((name) => Math.max(artistShare.get(name) || 0, trackShare.get(name) || 0)));
+  $("#family-bars").innerHTML = names.length ? names.map((name) => {
+    const artists = artistShare.get(name) || 0;
+    const songs = trackShare.get(name) || 0;
+    const examples = families.find((item) => item.name === name)?.examples || [];
+    return `<div class="family-row">
+      <div class="family-name"><strong>${escapeHtml(name)}</strong><span>${escapeHtml(examples.slice(0, 3).join(", ") || "Sólo en canciones")}</span></div>
+      <div class="family-meter" role="img" aria-label="${escapeHtml(name)}: ${artists}% en artistas, ${songs}% en canciones">
+        <span class="family-bar artists" style="width:${artists / peak * 100}%"></span>
+        <span class="family-bar songs" style="width:${songs / peak * 100}%"></span>
+      </div>
+      <div class="family-values"><span>${artists}%</span><span>${songs}%</span></div>
+    </div>`;
+  }).join("") : `<p class="history-panel-empty">Sin géneros verificados para este período.</p>`;
+
+  const moves = [
+    ...(shift?.rising || []).map((item) => `<li class="up"><strong>${escapeHtml(item.name)}</strong><span>+${item.delta} pts</span></li>`),
+    ...(shift?.falling || []).map((item) => `<li class="down"><strong>${escapeHtml(item.name)}</strong><span>${item.delta} pts</span></li>`)
+  ];
+  $("#family-moves").innerHTML = moves.length ? moves.join("") : `<li class="steady"><strong>Sin movimientos de 3 puntos o más</strong><span>vs ${escapeHtml(comparisonLabel)}</span></li>`;
+  const bridges = Array.isArray(data.bridges) ? data.bridges : [];
+  $("#bridge-list").innerHTML = bridges.length ? bridges.map((item) => `<li><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.families.join(" · "))}</span></li>`).join("")
+    : `<li><span>Ningún artista del Top 20 cruza dos familias.</span></li>`;
 }
 
 function updateListToggle(button, expanded, count) {
@@ -400,6 +476,10 @@ function formatNumber(value) {
   return new Intl.NumberFormat("es-AR").format(value || 0);
 }
 
+function playsLabel(count) {
+  return `${formatNumber(count)} ${count === 1 ? "escucha" : "escuchas"}`;
+}
+
 function formatListeningTime(milliseconds) {
   const minutes = Math.floor((milliseconds || 0) / 60_000);
   const hours = Math.floor(minutes / 60);
@@ -416,9 +496,65 @@ function spotifyTrackUrl(uri) {
   return match ? `https://open.spotify.com/track/${match[1]}` : "";
 }
 
+function formatHistoryDay(timestamp) {
+  if (!Number.isFinite(timestamp)) return "—";
+  return new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short", year: "numeric" }).format(timestamp);
+}
+
 function formatHistoryDate(timestamp) {
   if (!Number.isFinite(timestamp)) return "—";
-  return new Intl.DateTimeFormat("es-AR", { month: "short", year: "numeric", timeZone: "UTC" }).format(timestamp);
+  return new Intl.DateTimeFormat("es-AR", { month: "short", year: "numeric" }).format(timestamp);
+}
+
+const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+const localTimeZone = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "hora local"; } catch { return "hora local"; } })();
+
+function formatMonth(value) {
+  return `${MONTHS[value.month]} ${value.year}`;
+}
+
+// Story days are calendar days already shifted to local time, stored as UTC midnight.
+function formatDay(utcMidnight) {
+  return new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(utcMidnight);
+}
+
+function songLink(item) {
+  const url = spotifyTrackUrl(item.uri);
+  const title = escapeHtml(item.track);
+  return url ? `<a href="${url}" target="_blank" rel="noreferrer">${title}</a>` : title;
+}
+
+function renderStory(analysis) {
+  const story = analysis.story || {};
+  const eras = (story.eras || []).slice(-8).reverse();
+  $("#story-eras").innerHTML = eras.length ? eras.map((era) => {
+    const longest = story.longestEra && era.artist === story.longestEra.artist && era.start.year === story.longestEra.start.year && era.start.month === story.longestEra.start.month;
+    return `<li class="${longest ? "longest" : ""}">
+      <span class="era-dates">${escapeHtml(formatMonth(era.start))} – ${escapeHtml(formatMonth(era.end))}</span>
+      <strong>${escapeHtml(era.artist)}</strong>
+      <span class="era-meta">${era.months} meses · ${era.share}% de tus escuchas${longest ? " · tu era más larga" : ""}</span>
+    </li>`;
+  }).join("") : `<li class="history-panel-empty">Todavía no hay dos meses seguidos con el mismo artista #1.</li>`;
+
+  $("#story-years").innerHTML = (story.years || []).length ? story.years.slice().reverse().map((year) => `
+    <tr><td class="story-year">${year.year}</td><td>${songLink(year)}<span>${escapeHtml(year.artist)} · ${playsLabel(year.trackPlays)}</span></td><td>${escapeHtml(year.topArtist)}<span>${playsLabel(year.artistPlays)}</span></td><td>${formatNumber(year.newArtists)}</td></tr>`).join("")
+    : `<tr><td colspan="4" class="history-empty">No hay fechas válidas.</td></tr>`;
+
+  const list = (items, render, empty) => items?.length ? items.map(render).join("") : `<li class="history-panel-empty">${empty}</li>`;
+  $("#story-forgotten").innerHTML = list(story.forgotten, (item) => `<li><strong>${songLink(item)}</strong><span>${escapeHtml(item.artist)} · ${playsLabel(item.plays)} · última: ${escapeHtml(formatHistoryDate(item.lastPlayedAt))}</span></li>`,
+    "Ninguna favorita quedó en silencio por seis meses.");
+  $("#story-loyal").innerHTML = list(story.loyal, (item) => `<li><strong>${escapeHtml(item.artist)}</strong><span>desde ${escapeHtml(formatHistoryDate(item.firstPlayedAt))} · ${String(item.years).replace(".", ",")} años</span></li>`,
+    "Hace falta más de un año de historial.");
+  $("#story-skipped").innerHTML = list(story.mostSkipped, (item) => `<li><strong>${songLink(item)}</strong><span>${escapeHtml(item.artist)} · salteada ${item.rate}% de ${formatNumber(item.known)} veces</span></li>`,
+    "Sin canciones salteadas con frecuencia (mínimo 5 registros con dato de salto).");
+}
+
+function renderHeatmap(heatmap) {
+  const peak = Math.max(1, ...heatmap.flat());
+  const header = `<span></span>${Array.from({ length: 24 }, (_, hour) => `<small>${hour % 6 === 0 ? hour : ""}</small>`).join("")}`;
+  $("#history-heatmap").innerHTML = header + heatmap.map((row, weekday) => `<span class="heatmap-day">${WEEKDAYS[weekday]}</span>${row.map((plays, hour) =>
+    `<i style="--heat:${(plays / peak).toFixed(3)}" title="${WEEKDAYS[weekday]} ${hour}:00 · ${formatNumber(plays)} reproducciones"></i>`).join("")}`).join("");
 }
 
 async function renderHistory() {
@@ -453,7 +589,7 @@ function renderHistoryAnalysis(analysis) {
     return `<div class="history-year" aria-label="${year.year}: ${escapeHtml(time)}"><strong>${escapeHtml(time)}</strong><span style="--bar-height:${height}%"></span><small>${year.year}</small></div>`;
   }).join("") : '<p class="history-panel-empty">No hay fechas válidas en este período.</p>';
   $("#history-artists").innerHTML = analysis.artists.length ? analysis.artists.slice(0, 10).map((artist) => `
-    <li><span>${String(artist.rank).padStart(2, "0")}</span><strong>${escapeHtml(artist.artist)}</strong><small>${formatNumber(artist.plays)} escuchas</small></li>
+    <li><span>${String(artist.rank).padStart(2, "0")}</span><strong>${escapeHtml(artist.artist)}</strong><small>${playsLabel(artist.plays)}</small></li>
   `).join("") : '<li class="history-panel-empty">No hay artistas para este período.</li>';
 
   $("#history-result-count").textContent = `${formatNumber(analysis.matchingTracks)} coincidencias · mostrando ${visibleTracks.length} de hasta 1000`;
@@ -461,17 +597,29 @@ function renderHistoryAnalysis(analysis) {
   const habits = analysis.habits;
   const percent = (flag) => flag.known ? `${Math.round(flag.yes / flag.known * 100)}%` : "—";
   const habitCards = [
-    ["Días con música", formatNumber(habits.activeDays), "Días UTC con al menos una escucha de 30 s."],
-    ["Racha más larga", `${habits.longestStreak} días`, "Días consecutivos con escuchas de al menos 30 s."],
+    ["Días con música", formatNumber(habits.activeDays), "Días con al menos una escucha de 30 s, en tu zona horaria."],
+    ["Racha más larga", `${formatNumber(habits.longestStreak)} ${habits.longestStreak === 1 ? "día" : "días"}`, "Días consecutivos con escuchas de al menos 30 s."],
     ["Artistas efectivos", habits.effectiveArtists ?? "—", "Diversidad de escuchas: 5 equivale a cinco artistas escuchados por igual. Entropía de Shannon."],
     ["Tus 5 artistas principales", habits.topFiveShare === null ? "—" : `${habits.topFiveShare}%`, "Parte de las reproducciones de 30 s o más que reúnen entre los cinco."],
     ["Saltos registrados", percent(habits.flags.skipped), `${formatNumber(habits.flags.skipped.yes)} de ${formatNumber(habits.flags.skipped.known)} registros con dato de salto. No implica una canción completa.`],
     ["Modo aleatorio", percent(habits.flags.shuffle), `${formatNumber(habits.flags.shuffle.known)} registros con dato de shuffle. Los campos ausentes no se cuentan como no.`],
-    ["Sin conexión", percent(habits.flags.offline), `${formatNumber(habits.flags.offline.known)} registros con dato offline.`]
+    ["Sin conexión", percent(habits.flags.offline), `${formatNumber(habits.flags.offline.known)} registros con dato offline.`],
+    ["Sesiones", formatNumber(habits.sessions?.count), habits.sessions?.longest
+      ? `Mediana de ${habits.sessions.medianMinutes} min. La más larga: ${formatListeningTime(habits.sessions.longest.minutes * 60_000)}, el ${formatHistoryDay(habits.sessions.longest.startedAt)}.`
+      : "Una sesión termina tras 30 minutos sin música."],
+    ["Récord en un día", analysis.story?.obsession ? `${analysis.story.obsession.plays}×` : "—", analysis.story?.obsession
+      ? `${analysis.story.obsession.track} de ${analysis.story.obsession.artist}, el ${formatDay(analysis.story.obsession.day)}.`
+      : "La canción que más repetiste en un mismo día."],
+    ["Exploración", analysis.story?.discovery ? `${analysis.story.discovery.share}%` : "—", analysis.story?.discovery
+      ? `Escuchas de ${formatNumber(analysis.story.discovery.artists)} artistas que conociste en este período.`
+      : "Elegí 1 año, 6 meses o 4 semanas para medir cuánto de lo que escuchás es nuevo."]
   ];
   $("#history-habits").innerHTML = habitCards.map(([label, value, copy]) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><p>${escapeHtml(copy)}</p></article>`).join("");
   const peak = Math.max(1, ...habits.hours);
-  $("#history-hours").innerHTML = habits.hours.map((plays, hour) => `<div class="hour-column" title="${hour}:00 UTC · ${formatNumber(plays)} reproducciones"><span style="height:${Math.max(2, plays / peak * 100)}%"></span><small>${hour % 3 === 0 ? hour : ""}</small><span class="sr-only">${hour}:00 UTC: ${plays} reproducciones</span></div>`).join("");
+  $("#history-hours-caption").textContent = `Reproducciones por hora de finalización · ${localTimeZone}`;
+  $("#history-hours").innerHTML = habits.hours.map((plays, hour) => `<div class="hour-column" title="${hour}:00 · ${formatNumber(plays)} reproducciones"><span style="height:${Math.max(2, plays / peak * 100)}%"></span><small>${hour % 3 === 0 ? hour : ""}</small><span class="sr-only">${hour}:00: ${plays} reproducciones</span></div>`).join("");
+  if (habits.heatmap) renderHeatmap(habits.heatmap);
+  renderStory(analysis);
   $("#history-platforms").textContent = habits.platforms.length ? `Plataformas del archivo: ${habits.platforms.map(([name, ms]) => `${name} (${formatListeningTime(ms)})`).join(" · ")}` : "Este archivo no incluye plataformas.";
   $("#history-ranking").innerHTML = visibleTracks.length ? visibleTracks.map((item) => {
     const url = spotifyTrackUrl(item.uri);
